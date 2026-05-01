@@ -1,6 +1,6 @@
 # core/orchestrator.py
-from loaders.pdf_loader import load_pdf
-from ocr.tesseract_engine import TesseractEngine
+from ..loaders.pdf_loader import load_pdf
+from ..ocr.tesseract_engine import TesseractEngine
 
 class OCRPipeline:
 
