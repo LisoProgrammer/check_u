@@ -1,7 +1,7 @@
 import os
 from ..core.orchestrator import OCRPipeline
 
-PDF_PATH = os.path.join(os.path.dirname(__file__), "../../test_data/cc_escaneada.pdf")
+PDF_PATH = os.path.join(os.path.dirname(__file__), "../../test_data/cc2_escaneada.pdf")
 
 def main():
     pipeline = OCRPipeline()
