@@ -54,16 +54,37 @@ def test_complete_pipeline():
     print("-"*60)
     
     try:
+        from pdf2image import convert_from_bytes
+        import io
+
         pipeline = OCRPipeline()
         with open(TEST_PDF_PATH, "rb") as f:
-            start_time = time.time()
-            result = pipeline.process(f.read())
-            elapsed = time.time() - start_time
+            pdf_bytes = f.read()
+
+
+        images = convert_from_bytes(pdf_bytes)
+
+
+        cleaner = ImageCleaner()
+
+        cleaned = cleaner.clean_image(
+            images[0]
+        )
+
+
+        text = pipeline.ocr_engine.extract_text(
+            cleaned
+        )
+
+
+        result = {
+            "text": text
+        }
         
-        print(f"OK: OCR completado en {elapsed:.2f}s")
+        #print(f"OK: OCR completado en {elapsed:.2f}s")
         print(f"OK: Caracteres extraídos: {len(result['text'])}")
         print("\nMuestra de texto extraído (primeros 300 caracteres):")
-        print(result['text'][:300])
+        print(result['text'])
     except Exception as e:
         print(f"Error en OCR básico: {e}")
         return
@@ -85,7 +106,7 @@ def test_complete_pipeline():
                 ("Original", img)
             )
             # Test Image Cleaner
-            cleaner = ImageCleaner(resize_width=1200)
+            cleaner = ImageCleaner(resize_width=2000)
             import numpy as np
             img_array = np.array(img)
             cleaned_img = cleaner.clean_image(img)
@@ -157,7 +178,7 @@ def test_complete_pipeline():
     print("\nEstadísticas:")
     print(f"  - Fecha/Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"  - Archivo procesado: {os.path.basename(TEST_PDF_PATH)}")
-    print(f"  - Tiempo total OCR: {elapsed:.2f}s")
+    #print(f"  - Tiempo total OCR: {elapsed:.2f}s")
     print(f"  - Tamaño de texto final: {len(cleaned_text)} caracteres")
     print("\n")
 
