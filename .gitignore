@@ -2,3 +2,5 @@ venv/
 __pycache__/
 test_outputs/
 test_data/
+test_image_cleaner/
+modules/ocr_module/config.py
