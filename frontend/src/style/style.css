@@ -1,0 +1,250 @@
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Arial, Helvetica, sans-serif;
+}
+
+.container{
+
+width:95%;
+max-width:1300px;
+margin:auto;
+padding:20px;
+
+}
+
+header{
+
+text-align:center;
+margin-bottom:30px;
+
+}
+
+.logo{
+
+width:110px;
+
+}
+
+header h2{
+
+margin-top:10px;
+text-align:left;
+
+}
+
+.cards{
+
+display:grid;
+grid-template-columns:2fr 1fr;
+gap:20px;
+margin-bottom:25px;
+
+}
+
+.estado{
+
+background:#dff9e5;
+border:1px solid #9fd8a7;
+border-radius:12px;
+padding:25px;
+display:flex;
+gap:20px;
+align-items:center;
+box-shadow:0 3px 8px rgba(0,0,0,.15);
+
+}
+
+.estado i{
+
+font-size:55px;
+color:#00a37a;
+
+}
+
+.estado h2{
+
+color:#118c67;
+margin:5px 0;
+
+}
+
+.admision{
+
+background:white;
+padding:20px;
+border-radius:12px;
+box-shadow:0 3px 8px rgba(0,0,0,.15);
+
+}
+
+.admision hr{
+
+margin:10px 0;
+
+}
+
+.admision p{
+
+margin-top:10px;
+
+}
+
+.contenido{
+
+display:grid;
+grid-template-columns:2fr 1.2fr;
+gap:20px;
+
+}
+
+.timeline{
+
+background:white;
+padding:25px;
+border-radius:12px;
+box-shadow:0 3px 8px rgba(0,0,0,.15);
+
+}
+
+.timeline h2{
+
+text-align:center;
+margin-bottom:20px;
+
+}
+
+.timeline ul{
+
+list-style:none;
+position:relative;
+
+}
+
+.timeline ul::before{
+
+content:"";
+position:absolute;
+left:14px;
+top:5px;
+height:90%;
+width:2px;
+background:#d0d0d0;
+
+}
+
+.timeline li{
+
+position:relative;
+padding-left:40px;
+margin-bottom:30px;
+
+}
+
+.timeline li::before{
+
+content:"";
+width:18px;
+height:18px;
+border-radius:50%;
+background:white;
+border:3px solid #ccc;
+position:absolute;
+left:3px;
+
+}
+
+.timeline li.done::before{
+
+background:#18b28d;
+border-color:#18b28d;
+
+}
+
+.timeline li.active::before{
+
+background:white;
+border-color:#18b28d;
+
+}
+
+.timeline strong{
+
+display:block;
+
+}
+
+.timeline span{
+
+font-size:14px;
+color:#666;
+
+}
+
+.documentos{
+
+background:#09142d;
+padding:25px;
+border-radius:12px;
+color:white;
+box-shadow:0 3px 8px rgba(0,0,0,.2);
+
+}
+
+.documentos h2{
+
+text-align:center;
+
+}
+
+.documentos small{
+
+display:block;
+text-align:center;
+margin:10px 0 25px;
+
+}
+
+.doc{
+
+display:flex;
+justify-content:space-between;
+align-items:center;
+background:#132041;
+padding:15px;
+margin-bottom:15px;
+border-radius:8px;
+
+}
+
+.aprobado .fa-circle-check{
+
+color:#2ecc71;
+font-size:20px;
+
+}
+
+.rechazado .fa-circle-xmark{
+
+color:#ff5a5a;
+font-size:20px;
+
+}
+
+@media(max-width:900px){
+
+.cards,
+.contenido{
+
+grid-template-columns:1fr;
+
+}
+
+header h2{
+
+text-align:center;
+
+}
+
+}
