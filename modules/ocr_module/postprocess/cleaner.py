@@ -1,115 +1,245 @@
 # postprocess/cleaner.py
+
 import re
 from typing import List
 
+
 class TextCleaner:
-    """Limpia texto extraído por OCR eliminando ruido y normalizando"""
-    
-    def __init__(self, min_line_length: int = 2, remove_empty_lines: bool = True):
+    """
+    Limpia y normaliza texto producido por OCR.
+
+    IMPORTANTE:
+    Este módulo NO intenta corregir nombres, números de documento
+    ni datos personales. Su objetivo es eliminar ruido estructural
+    sin modificar información potencialmente importante.
+    """
+
+    def __init__(
+        self,
+        min_line_length: int = 2,
+        remove_empty_lines: bool = True
+    ):
         self.min_line_length = min_line_length
         self.remove_empty_lines = remove_empty_lines
-    
+
     def clean(self, text: str) -> str:
         """
-        Limpia el texto completo aplicando múltiples técnicas
-        
-        Args:
-            text: Texto sin procesar de OCR
-        
-        Returns:
-            Texto limpiado
+        Limpia el texto OCR conservando la mayor cantidad posible
+        de información original.
         """
-        # Limpiar saltos de línea extra
+
+        if not text:
+            return ""
+
+        # 1. Normalizar saltos de línea y caracteres de control
         text = self._normalize_whitespace(text)
-        
-        # Limpiar caracteres inválidos
+
+        # 2. Eliminar caracteres de control / basura
         text = self._remove_invalid_characters(text)
-        
-        # Limpiar espacios extra
+
+        # 3. Normalizar espacios
         text = self._remove_extra_spaces(text)
-        
-        # Limpiar líneas cortas/vacías
+
+        # 4. Limpiar líneas
         text = self._clean_empty_lines(text)
-        
-        # Corregir errores comunes de OCR
-        text = self._fix_common_ocr_errors(text)
-        
+
+        # 5. Normalizar algunos patrones OCR seguros
+        text = self._normalize_ocr_patterns(text)
+
         return text.strip()
-    
+
+    # ---------------------------------------------------------
+    # WHITESPACE
+    # ---------------------------------------------------------
+
     def _normalize_whitespace(self, text: str) -> str:
-        """Normaliza espacios en blanco"""
-        # Reemplazar múltiples saltos de línea con máximo 2
-        text = re.sub(r'\n{3,}', '\n\n', text)
-        # Reemplazar tabs con espacios
-        text = text.replace('\t', '    ')
+        """
+        Normaliza saltos de línea, tabs y espacios.
+        """
+
+        # Normalizar diferentes tipos de salto de línea
+        text = text.replace("\r\n", "\n")
+        text = text.replace("\r", "\n")
+
+        # Tabs -> espacio
+        text = text.replace("\t", " ")
+
+        # Espacios no separables
+        text = text.replace("\u00A0", " ")
+
+        # Eliminar espacios al final de las líneas
+        text = re.sub(r"[ \t]+\n", "\n", text)
+
+        # Máximo dos saltos de línea consecutivos
+        text = re.sub(r"\n{3,}", "\n\n", text)
+
         return text
-    
+
+    # ---------------------------------------------------------
+    # INVALID CHARACTERS
+    # ---------------------------------------------------------
+
     def _remove_invalid_characters(self, text: str) -> str:
-        """Elimina caracteres inválidos/ruido"""
-        # Eliminar caracteres de control excepto newline y tab
-        text = ''.join(char for char in text if char.isprintable() or char == '\n')
-        # Eliminar símbolos raros muy comunes en OCR
-        text = re.sub(r'[`´¡°§¶†‡§™]', '', text)
-        return text
-    
-    def _remove_extra_spaces(self, text: str) -> str:
-        """Elimina espacios extra dentro de líneas"""
-        # Múltiples espacios -> un espacio
-        text = re.sub(r' {2,}', ' ', text)
-        # Espacios al inicio/final de líneas
-        text = '\n'.join(line.strip() for line in text.split('\n'))
-        return text
-    
-    def _clean_empty_lines(self, text: str) -> str:
-        """Limpia líneas vacías o muy cortas"""
-        lines = text.split('\n')
-        cleaned_lines = []
-        
-        for line in lines:
-            line = line.strip()
-            
-            # Eliminar líneas vacías si está configurado
-            if self.remove_empty_lines and not line:
+        """
+        Elimina caracteres de control y algunos símbolos de ruido.
+
+        No elimina letras, números ni puntuación normal.
+        """
+
+        cleaned = []
+
+        for char in text:
+
+            # Conservar saltos de línea
+            if char == "\n":
+                cleaned.append(char)
                 continue
-            
-            # Eliminar líneas muy cortas
-            if len(line) >= self.min_line_length:
-                cleaned_lines.append(line)
-        
-        return '\n'.join(cleaned_lines)
-    
-    def _fix_common_ocr_errors(self, text: str) -> str:
-        """Corrige errores comunes de OCR en español"""
-        # Errores comunes por confusión de caracteres
-        replacements = {
-            r'\bl\b': 'I',  # letra 'l' minúscula -> 'I'
-            r'\b0\b': 'O',  # '0' -> 'O' en palabras aisladas
-            r'\b1\b': 'I',  # '1' -> 'I' en palabras aisladas
-            r'rn': 'm',     # 'rn' -> 'm' (a menudo confundido)
-            r'ln': 'm',     # 'ln' -> 'm'
-            r'RH': 'Rh',    # Estandarizar notación de sangre
-            r'DD-MM-YYYY': 'DD-MM-YYYY',  # Mantener formato de fecha
-        }
-        
-        for pattern, replacement in replacements.items():
-            text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
-        
+
+            # Eliminar caracteres de control
+            if ord(char) < 32:
+                continue
+
+            # Conservar caracteres imprimibles
+            if char.isprintable():
+                cleaned.append(char)
+
+        text = "".join(cleaned)
+
+        # Símbolos que suelen aparecer como ruido visual del OCR
+        text = re.sub(
+            r"[`´¡°§¶†‡™]",
+            "",
+            text
+        )
+
         return text
-    
+
+    # ---------------------------------------------------------
+    # SPACES
+    # ---------------------------------------------------------
+
+    def _remove_extra_spaces(self, text: str) -> str:
+        """
+        Reduce espacios innecesarios sin modificar el contenido.
+        """
+
+        # Múltiples espacios -> uno
+        text = re.sub(r"[ ]{2,}", " ", text)
+
+        # Espacios alrededor de saltos de línea
+        lines = []
+
+        for line in text.split("\n"):
+            line = line.strip()
+            lines.append(line)
+
+        return "\n".join(lines)
+
+    # ---------------------------------------------------------
+    # LINES
+    # ---------------------------------------------------------
+
+    def _clean_empty_lines(self, text: str) -> str:
+        """
+        Elimina líneas vacías y líneas compuestas únicamente por ruido.
+        """
+
+        lines = text.split("\n")
+
+        cleaned_lines = []
+
+        for line in lines:
+
+            line = line.strip()
+
+            # Línea vacía
+            if not line:
+                if not self.remove_empty_lines:
+                    cleaned_lines.append("")
+                continue
+
+            # Línea demasiado corta
+            if len(line) < self.min_line_length:
+                continue
+
+            # Eliminar líneas formadas exclusivamente por símbolos
+            if self._is_noise_line(line):
+                continue
+
+            cleaned_lines.append(line)
+
+        return "\n".join(cleaned_lines)
+
+    def _is_noise_line(self, line: str) -> bool:
+        """
+        Determina si una línea parece estar compuesta únicamente
+        por ruido OCR.
+        """
+
+        # Si contiene letras o números, NO eliminar
+        if re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]", line):
+            return False
+
+        # Si solamente contiene símbolos, probablemente es ruido
+        return True
+
+    # ---------------------------------------------------------
+    # OCR PATTERNS
+    # ---------------------------------------------------------
+
+    def _normalize_ocr_patterns(self, text: str) -> str:
+        """
+        Normalizaciones seguras.
+
+        IMPORTANTE:
+        No se realizan correcciones lingüísticas automáticas porque
+        podrían modificar nombres o números.
+        """
+
+        # Normalizar guiones Unicode
+        text = text.replace("–", "-")
+        text = text.replace("—", "-")
+        text = text.replace("−", "-")
+
+        # Normalizar comillas
+        text = text.replace("“", '"')
+        text = text.replace("”", '"')
+        text = text.replace("‘", "'")
+        text = text.replace("’", "'")
+
+        # Normalizar espacios alrededor de algunos separadores
+        text = re.sub(r"\s*:\s*", ": ", text)
+
+        return text
+
+    # ---------------------------------------------------------
+    # LINES API
+    # ---------------------------------------------------------
+
     def clean_lines(self, text: str) -> List[str]:
         """
-        Limpia el texto y lo retorna como lista de líneas
-        
-        Args:
-            text: Texto de entrada
-        
-        Returns:
-            Lista de líneas limpias
+        Limpia el texto y devuelve una lista de líneas.
         """
-        cleaned = self.clean(text)
-        return [line for line in cleaned.split('\n') if line.strip()]
 
-def clean_ocr_text(text: str, min_line_length: int = 2) -> str:
-    """Función de conveniencia para limpiar texto OCR"""
-    cleaner = TextCleaner(min_line_length=min_line_length)
+        cleaned = self.clean(text)
+
+        return [
+            line
+            for line in cleaned.split("\n")
+            if line.strip()
+        ]
+
+
+def clean_ocr_text(
+    text: str,
+    min_line_length: int = 2
+) -> str:
+    """
+    Función de conveniencia.
+    """
+
+    cleaner = TextCleaner(
+        min_line_length=min_line_length
+    )
+
     return cleaner.clean(text)
