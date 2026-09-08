@@ -85,8 +85,8 @@ class OCRPipeline:
         # LIMPIEZA TEXTO
         # -------------------------
 
-        #cleaned_text = self.text_cleaner.clean(raw_text)
-        cleaned_text = raw_text
+        cleaned_text = self.text_cleaner.clean(raw_text)
+        #cleaned_text = raw_text
 
 
         # -------------------------
