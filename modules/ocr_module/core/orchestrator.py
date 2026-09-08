@@ -73,9 +73,7 @@ class OCRPipeline:
             # OCR
             # -------------------------
 
-            text = self.ocr_engine.extract_text(
-                cleaned_img
-            )
+            text = self.ocr_engine.extract_text_with_confidence(cleaned_img, min_confidence=40)
 
 
             raw_text += text + "\n"
@@ -87,10 +85,8 @@ class OCRPipeline:
         # LIMPIEZA TEXTO
         # -------------------------
 
-        cleaned_text = self.text_cleaner.clean(
-            raw_text
-        )
-
+        #cleaned_text = self.text_cleaner.clean(raw_text)
+        cleaned_text = raw_text
 
 
         # -------------------------
