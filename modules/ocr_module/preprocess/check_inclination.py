@@ -1,110 +1,267 @@
 # preprocess/check_inclination.py
+
 import cv2
 import numpy as np
 from typing import Tuple
 
+
 class SkewDetector:
-    """Detecta y corrige la inclinación (skew) en documentos escaneados"""
-    
-    def __init__(self, max_angle: float = 15):
+    """Detecta y corrige la inclinación de documentos para OCR."""
+
+    def __init__(
+        self,
+        max_angle: float = 15.0,
+        correction_threshold: float = 1.0
+    ):
         self.max_angle = max_angle
-    
+        self.correction_threshold = correction_threshold
+
     def detect_skew(self, image: np.ndarray) -> float:
         """
-        Detecta el ángulo de inclinación usando Hough Transform
-        
-        Args:
-            image: Imagen en escala de grises o binarizada
-        
+        Detecta la inclinación usando HoughLinesP.
+
+        Se consideran únicamente líneas casi horizontales,
+        ya que son las más útiles para determinar el skew
+        del texto de un documento.
+
         Returns:
-            Ángulo de inclinación en grados (negativo = anti-horario)
+            Ángulo detectado en grados.
         """
-        # Asegurar que es binarizada
+
+        # --------------------------------------------------
+        # 1. Escala de grises
+        # --------------------------------------------------
+
         if len(image.shape) == 3:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        
-        # Aplicar umbral
-        _, binary = cv2.threshold(image, 127, 255, cv2.THRESH_BINARY)
-        
-        # Encontrar líneas usando Hough
-        lines = cv2.HoughLines(binary, 1, np.pi/180, 100)
-        
-        if lines is None or len(lines) == 0:
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = image.copy()
+
+        # --------------------------------------------------
+        # 2. Binarización
+        # --------------------------------------------------
+
+        # Texto oscuro -> blanco
+        _, binary = cv2.threshold(
+            gray,
+            0,
+            255,
+            cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
+        )
+
+        # --------------------------------------------------
+        # 3. Reducir ruido pequeño
+        # --------------------------------------------------
+
+        kernel = np.ones((2, 2), np.uint8)
+
+        binary = cv2.morphologyEx(
+            binary,
+            cv2.MORPH_OPEN,
+            kernel
+        )
+
+        # --------------------------------------------------
+        # 4. Detectar segmentos de línea
+        # --------------------------------------------------
+
+        lines = cv2.HoughLinesP(
+            binary,
+            rho=1,
+            theta=np.pi / 1800,
+            threshold=50,
+            minLineLength=50,
+            maxLineGap=10
+        )
+
+        if lines is None:
             return 0.0
-        
-        # Calcular ángulos
-        angles = []
+
+        # --------------------------------------------------
+        # 5. Analizar solamente líneas horizontales
+        # --------------------------------------------------
+
+        candidates = []
+
         for line in lines:
-            rho, theta = line[0]
-            angle = np.degrees(theta) - 90
-            
-            # Normalizar ángulo entre -90 y 90
-            if angle > 45:
-                angle -= 90
-            if angle < -45:
-                angle += 90
-            
-            angles.append(angle)
-        
-        # Usar la mediana de los ángulos
-        if angles:
-            skew_angle = np.median(angles)
-            return float(skew_angle)
-        
-        return 0.0
-    
-    def correct_skew(self, image: np.ndarray, angle: float = None) -> Tuple[np.ndarray, float]:
+
+            x1, y1, x2, y2 = line[0]
+
+            dx = x2 - x1
+            dy = y2 - y1
+
+            # Ignorar líneas verticales
+            if dx == 0:
+                continue
+
+            angle = np.degrees(
+                np.arctan2(dy, dx)
+            )
+
+            length = np.sqrt(
+                dx ** 2 + dy ** 2
+            )
+
+            # Solo líneas aproximadamente horizontales
+            if -10.0 <= angle <= 10.0:
+
+                candidates.append(
+                    (float(angle), float(length))
+                )
+
+        if not candidates:
+            return 0.0
+
+        # --------------------------------------------------
+        # 6. Eliminar líneas demasiado cortas
+        # --------------------------------------------------
+
+        candidates = [
+            (angle, length)
+            for angle, length in candidates
+            if length >= 50
+        ]
+
+        if not candidates:
+            return 0.0
+
+        # --------------------------------------------------
+        # 7. Ordenar por longitud
+        # --------------------------------------------------
+
+        candidates.sort(
+            key=lambda x: x[1],
+            reverse=True
+        )
+
+        # Tomamos las líneas más representativas
+        selected = candidates[:20]
+
+        # --------------------------------------------------
+        # 8. Mediana ponderada por longitud
+        # --------------------------------------------------
+
+        angles = np.array(
+            [angle for angle, _ in selected],
+            dtype=np.float64
+        )
+
+        lengths = np.array(
+            [length for _, length in selected],
+            dtype=np.float64
+        )
+
+        # Repetimos los ángulos proporcionalmente
+        # a su importancia relativa.
+        weights = lengths / lengths.sum()
+
+        # Media ponderada
+        skew_angle = np.sum(
+            angles * weights
+        )
+
+        # --------------------------------------------------
+        # 9. Limitar resultados absurdos
+        # --------------------------------------------------
+
+        if abs(skew_angle) > self.max_angle:
+            return 0.0
+
+        return float(skew_angle)
+
+    def correct_skew(
+        self,
+        image: np.ndarray,
+        angle: float = None
+    ) -> Tuple[np.ndarray, float]:
         """
-        Corrige la inclinación de la imagen
-        
-        Args:
-            image: Imagen de entrada
-            angle: Ángulo de corrección. Si es None, se detecta automáticamente
-        
-        Returns:
-            Tupla (imagen_corregida, ángulo_detectado)
+        Detecta y corrige la inclinación.
         """
+
         if angle is None:
             angle = self.detect_skew(image)
-        
-        # Limitar el ángulo máximo
-        if abs(angle) > self.max_angle:
-            angle = np.sign(angle) * self.max_angle
-        
-        if abs(angle) < 0.5:  # Muy pequeño, no corregir
-            return image, angle
-        
-        # Obtener altura y ancho
+
+        # --------------------------------------------------
+        # No corregir inclinaciones pequeñas
+        # --------------------------------------------------
+
+        if abs(angle) < self.correction_threshold:
+            return image, 0.0
+
+        # --------------------------------------------------
+        # Limitar ángulo
+        # --------------------------------------------------
+
+        angle = np.clip(
+            angle,
+            -self.max_angle,
+            self.max_angle
+        )
+
+        # --------------------------------------------------
+        # Dimensiones
+        # --------------------------------------------------
+
         h, w = image.shape[:2]
-        center = (w // 2, h // 2)
-        
-        # Calcular matriz de rotación
-        rotation_matrix = cv2.getRotationMatrix2D(center, -angle, 1.0)
-        
-        # Aplicar rotación
+
+        center = (
+            w / 2.0,
+            h / 2.0
+        )
+
+        # --------------------------------------------------
+        # Matriz de rotación
+        # --------------------------------------------------
+
+        rotation_matrix = cv2.getRotationMatrix2D(
+            center,
+            -angle,
+            1.0
+        )
+
+        # --------------------------------------------------
+        # Rotación
+        # --------------------------------------------------
+
         corrected = cv2.warpAffine(
-            image, rotation_matrix, (w, h),
-            flags=cv2.INTER_CUBIC,
+            image,
+            rotation_matrix,
+            (w, h),
+            flags=cv2.INTER_LINEAR,
             borderMode=cv2.BORDER_REPLICATE
         )
-        
-        return corrected, angle
-    
-    def auto_correct(self, image: np.ndarray) -> Tuple[np.ndarray, float]:
+
+        return corrected, float(angle)
+
+    def auto_correct(
+        self,
+        image: np.ndarray
+    ) -> Tuple[np.ndarray, float]:
         """
-        Detecta y corrige automáticamente la inclinación
-        
-        Args:
-            image: Imagen de entrada
-        
-        Returns:
-            Tupla (imagen_corregida, ángulo_detectado)
+        Detecta y corrige automáticamente la inclinación.
         """
+
         angle = self.detect_skew(image)
-        corrected, final_angle = self.correct_skew(image, angle)
+
+        corrected, final_angle = self.correct_skew(
+            image,
+            angle
+        )
+
         return corrected, final_angle
 
-def detect_and_correct_skew(image: np.ndarray, max_angle: float = 15) -> Tuple[np.ndarray, float]:
-    """Función de conveniencia para detectar y corregir inclinación"""
-    detector = SkewDetector(max_angle=max_angle)
+
+def detect_and_correct_skew(
+    image: np.ndarray,
+    max_angle: float = 15.0
+) -> Tuple[np.ndarray, float]:
+    """
+    Función de conveniencia.
+    """
+
+    detector = SkewDetector(
+        max_angle=max_angle,
+        correction_threshold=1.0
+    )
+
     return detector.auto_correct(image)
