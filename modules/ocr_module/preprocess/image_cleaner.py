@@ -155,7 +155,7 @@ class ImageCleaner:
             255,
             cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
             cv2.THRESH_BINARY,
-            21,
+            19,
             #C
             3
         )
