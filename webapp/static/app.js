@@ -2,7 +2,7 @@
 // Check_U - Panel de administrador (frontend)
 // ============================================================
 
-const estadoArchivos = { documento: null, cedula: null };
+let archivoCedula = null;
 
 // ------------------------------------------------------------
 // TABS
@@ -18,18 +18,18 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 });
 
 // ------------------------------------------------------------
-// DROPZONES
+// DROPZONE (cedula)
 // ------------------------------------------------------------
-function configurarDropzone(target) {
-    const zona = document.querySelector(`.dropzone[data-target="${target}"]`);
-    const input = document.getElementById(`input-${target}`);
+function configurarDropzone() {
+    const zona = document.querySelector('.dropzone[data-target="cedula"]');
+    const input = document.getElementById("input-cedula");
 
     const asignarArchivo = (file) => {
         if (!file) return;
-        estadoArchivos[target] = file;
+        archivoCedula = file;
         zona.classList.add("tiene-archivo");
         zona.querySelector(".nombre-archivo").textContent = file.name;
-        actualizarBotonProcesar();
+        document.getElementById("btn-procesar").disabled = false;
     };
 
     zona.addEventListener("click", () => input.click());
@@ -53,21 +53,15 @@ function configurarDropzone(target) {
     });
 }
 
-configurarDropzone("documento");
-configurarDropzone("cedula");
-
-function actualizarBotonProcesar() {
-    const boton = document.getElementById("btn-procesar");
-    boton.disabled = !(estadoArchivos.documento && estadoArchivos.cedula);
-}
+configurarDropzone();
 
 // ------------------------------------------------------------
 // PASOS / PROGRESO
 // ------------------------------------------------------------
 const ETAPAS = ["leyendo", "convirtiendo", "procesando", "inclinacion", "limpiando"];
 
-function marcarEtapa(target, stage, status) {
-    const li = document.querySelector(`#pasos-${target} li[data-stage="${stage}"]`);
+function marcarEtapa(stage, status) {
+    const li = document.querySelector(`#pasos-cedula li[data-stage="${stage}"]`);
     if (!li) return;
     li.classList.remove("en-progreso", "completado");
     li.classList.add(status === "done" ? "completado" : "en-progreso");
@@ -75,35 +69,45 @@ function marcarEtapa(target, stage, status) {
     if (status === "done") {
         const idx = ETAPAS.indexOf(stage);
         const pct = Math.round(((idx + 1) / ETAPAS.length) * 100);
-        document.getElementById(`barra-${target}`).style.width = pct + "%";
+        document.getElementById("barra-cedula").style.width = pct + "%";
     }
 }
 
-function reiniciarPasos(target) {
-    document.querySelectorAll(`#pasos-${target} li`).forEach((li) => {
+function reiniciarPasos() {
+    document.querySelectorAll("#pasos-cedula li").forEach((li) => {
         li.classList.remove("en-progreso", "completado");
     });
-    document.getElementById(`barra-${target}`).style.width = "0%";
-    const caja = document.getElementById(`resultado-${target}`);
-    caja.hidden = true;
-    caja.innerHTML = "";
+    document.getElementById("barra-cedula").style.width = "0%";
+
+    const caja = document.getElementById("resultado-cedula");
+    caja.innerHTML = `<p class="resultado-vacio">Procesando…</p>`;
 }
 
 // ------------------------------------------------------------
-// RENDER DE RESULTADOS POR DOCUMENTO
+// RENDER DE RESULTADOS
 // ------------------------------------------------------------
-function renderResultado(target, resultado) {
-    const caja = document.getElementById(`resultado-${target}`);
-    caja.hidden = false;
+function etiquetaCampo(clave) {
+    const mapa = {
+        nombre_completo: "Nombre",
+        numero_documento: "N° documento",
+        fecha_nacimiento: "Fecha nacimiento",
+        edad: "Edad",
+        sexo: "Sexo",
+    };
+    return mapa[clave] || clave;
+}
 
+function renderResultado(resultado) {
+    const caja = document.getElementById("resultado-cedula");
     const campos = resultado.fields || {};
+
     let html = "<dl>";
     for (const [clave, valor] of Object.entries(campos)) {
         html += `<dt>${etiquetaCampo(clave)}</dt><dd>${valor !== null && valor !== undefined ? valor : "—"}</dd>`;
     }
     html += "</dl>";
 
-    if (target === "cedula" && resultado.mrz) {
+    if (resultado.mrz) {
         if (!resultado.mrz.encontrado) {
             html += `<div class="aviso">No se pudo localizar/leer el MRZ en la imagen.</div>`;
         } else if (!resultado.mrz.valido) {
@@ -112,46 +116,6 @@ function renderResultado(target, resultado) {
     }
 
     caja.innerHTML = html;
-}
-
-function etiquetaCampo(clave) {
-    const mapa = {
-        nombre_completo: "Nombre",
-        numero_documento: "N° documento",
-        fecha_nacimiento: "Fecha nacimiento",
-        edad: "Edad",
-        sexo: "Sexo",
-        institucion_educativa: "Institución",
-        puntaje_global: "Puntaje ICFES",
-    };
-    return mapa[clave] || clave;
-}
-
-// ------------------------------------------------------------
-// COMPARACION
-// ------------------------------------------------------------
-function renderComparacion(filas) {
-    const seccion = document.getElementById("seccion-comparacion");
-    const cuerpo = document.getElementById("tabla-comparacion-body");
-    cuerpo.innerHTML = "";
-
-    if (!filas.length) {
-        seccion.hidden = true;
-        return;
-    }
-
-    filas.forEach((fila) => {
-        const tr = document.createElement("tr");
-        let coincideHtml;
-        if (fila.coincide === true) coincideHtml = `<span class="coincide-si"><i class="fa-solid fa-check"></i> Sí</span>`;
-        else if (fila.coincide === false) coincideHtml = `<span class="coincide-no"><i class="fa-solid fa-xmark"></i> No</span>`;
-        else coincideHtml = `<span class="coincide-na">—</span>`;
-
-        tr.innerHTML = `<td>${fila.campo}</td><td>${fila.documento}</td><td>${fila.cedula}</td><td>${coincideHtml}</td>`;
-        cuerpo.appendChild(tr);
-    });
-
-    seccion.hidden = false;
 }
 
 // ------------------------------------------------------------
@@ -166,25 +130,30 @@ function reiniciarRui() {
     document.getElementById("rui-datos").innerHTML = "";
 }
 
+function mostrarSoloEstadoRui(idVisible) {
+    // Un solo estado del RUI visible a la vez: spinner O check O error.
+    ["rui-cargando", "rui-ok", "rui-error"].forEach((id) => {
+        document.getElementById(id).hidden = id !== idVisible;
+    });
+}
+
 function manejarEventoRui(evento) {
-    const seccion = document.getElementById("seccion-rui");
-    seccion.hidden = false;
+    document.getElementById("seccion-rui").hidden = false;
 
     if (evento.status === "start") {
-        document.getElementById("rui-cargando").hidden = false;
+        mostrarSoloEstadoRui("rui-cargando");
         return;
     }
 
-    document.getElementById("rui-cargando").hidden = true;
-
     if (evento.status === "skipped") {
-        document.getElementById("rui-error").hidden = false;
-        document.getElementById("rui-error-msg").textContent = evento.message || "No se pudo determinar un número de documento para consultar.";
+        mostrarSoloEstadoRui("rui-error");
+        document.getElementById("rui-error-msg").textContent =
+            evento.message || "No se pudo determinar un número de documento para consultar.";
         return;
     }
 
     if (evento.success) {
-        document.getElementById("rui-ok").hidden = false;
+        mostrarSoloEstadoRui("rui-ok");
         const datos = evento.data || {};
         const info = datos.data || {};
         document.getElementById("rui-datos").hidden = false;
@@ -195,10 +164,10 @@ function manejarEventoRui(evento) {
                 <dt style="font-weight:600;">Nombre (RUI)</dt><dd>${info.nombre_completo || "—"}</dd>
             </dl>`;
     } else {
-        document.getElementById("rui-error").hidden = false;
+        mostrarSoloEstadoRui("rui-error");
         document.getElementById("rui-error-msg").textContent =
             "No se pudo consultar el RUI (" + (evento.error || "sin conexión al servicio") + "). " +
-            "Nota: el servicio del DNP solo es alcanzable desde una red con salida normal a internet.";
+            "El servicio del DNP necesita salida normal a internet.";
     }
 }
 
@@ -206,18 +175,16 @@ function manejarEventoRui(evento) {
 // PROCESAR (boton principal)
 // ------------------------------------------------------------
 document.getElementById("btn-procesar").addEventListener("click", async () => {
+    if (!archivoCedula) return;
+
     const boton = document.getElementById("btn-procesar");
     boton.disabled = true;
 
-    reiniciarPasos("documento");
-    reiniciarPasos("cedula");
+    reiniciarPasos();
     reiniciarRui();
-    document.getElementById("seccion-comparacion").hidden = true;
 
     const formData = new FormData();
-    formData.append("documento", estadoArchivos.documento);
-    formData.append("cedula", estadoArchivos.cedula);
-    formData.append("documento_tipo", document.getElementById("documento_tipo").value);
+    formData.append("cedula", archivoCedula);
 
     let jobId;
     try {
@@ -227,7 +194,7 @@ document.getElementById("btn-procesar").addEventListener("click", async () => {
         jobId = data.job_id;
     } catch (err) {
         alert("No se pudo iniciar el procesamiento: " + err.message);
-        actualizarBotonProcesar();
+        boton.disabled = false;
         return;
     }
 
@@ -238,33 +205,31 @@ document.getElementById("btn-procesar").addEventListener("click", async () => {
 
         switch (evento.type) {
             case "stage":
-                marcarEtapa(evento.target, evento.stage, evento.status);
+                marcarEtapa(evento.stage, evento.status);
                 break;
             case "result":
-                renderResultado(evento.target, evento.result);
+                renderResultado(evento.result);
                 break;
             case "error":
-                alert(`Error procesando ${evento.target}: ${evento.message}`);
-                break;
-            case "comparison":
-                renderComparacion(evento.rows);
+                document.getElementById("resultado-cedula").innerHTML =
+                    `<p class="resultado-vacio">Error: ${evento.message}</p>`;
+                alert(`Error procesando la cédula: ${evento.message}`);
                 break;
             case "rui":
                 manejarEventoRui(evento);
                 break;
             case "historial_actualizado":
-                // se refresca solo si el usuario abre la pestaña
                 break;
             case "done":
                 fuente.close();
-                actualizarBotonProcesar();
+                boton.disabled = false;
                 break;
         }
     };
 
     fuente.onerror = () => {
         fuente.close();
-        actualizarBotonProcesar();
+        boton.disabled = false;
     };
 });
 
@@ -284,13 +249,17 @@ async function cargarHistorial() {
 
         cuerpo.innerHTML = datos.map((r) => {
             let ruiTxt = "—";
-            if (r.rui && r.rui.success) ruiTxt = `<span class="coincide-si">✓ ${r.rui.data ? "" : ""}${(r.rui.data && r.rui.data.nombre_completo) || "verificado"}</span>`;
-            else if (r.rui) ruiTxt = `<span class="coincide-no">✗ no encontrado</span>`;
+            if (r.rui && r.rui.success) {
+                const nombreRui = (r.rui.data && r.rui.data.nombre_completo) || "verificado";
+                ruiTxt = `<span class="coincide-si">✓ ${nombreRui}</span>`;
+            } else if (r.rui) {
+                ruiTxt = `<span class="coincide-no">✗ no encontrado</span>`;
+            }
             return `<tr>
                 <td>${r.fecha}</td>
                 <td>${r.nombre}</td>
                 <td>${r.numero_documento}</td>
-                <td>${r.tipo_documento}</td>
+                <td>${r.edad !== null && r.edad !== undefined ? r.edad : "—"}</td>
                 <td>${ruiTxt}</td>
             </tr>`;
         }).join("");

@@ -150,6 +150,14 @@ body {
     gap: 18px;
 }
 
+/* Version solo-cedula: 2 tarjetas (cedula + resultado), sin la tercera
+   columna de "Documento" que ya no existe. Se limita el ancho maximo
+   para que no quede excesivamente estirado en pantallas grandes. */
+.grid-uploads-solo {
+    max-width: 820px;
+    margin: 0 auto;
+}
+
 .tarjeta-upload {
     background: #fff;
     border: 1px solid var(--gris-borde);
@@ -297,22 +305,65 @@ body {
     font-size: 0.78rem;
 }
 
+/* Caja de resultado de la cedula: ocupa el alto disponible de la
+   tarjeta y centra el mensaje vacio mientras no hay datos. */
+.resultado-caja-grande {
+    flex: 1;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.resultado-caja-grande dl {
+    font-size: 0.95rem;
+}
+
+.resultado-vacio {
+    text-align: center;
+    color: #9095a1;
+    margin: 0;
+}
+
 /* -------------------- PLACEHOLDER -------------------- */
 
+/* Fila de chips pequenos "proximamente" (Acta de grado, ICFES, Otros
+   requisitos) que reemplaza al antiguo placeholder grande de tarjeta
+   completa: ahora son varios, asi que van en una fila compacta. */
+.fila-placeholders {
+    max-width: 820px;
+    margin: 14px auto 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
 .tarjeta-placeholder {
+    flex: 1 1 200px;
+    display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     text-align: center;
-    border-style: dashed;
+    border: 1px dashed var(--gris-borde);
+    border-radius: 12px;
+    padding: 14px 10px;
     color: #b0b5c0;
+    background: #fff;
 }
 
 .tarjeta-placeholder i {
-    font-size: 1.6rem;
-    margin-bottom: 6px;
+    font-size: 1.3rem;
+    margin-bottom: 4px;
 }
 
-.tarjeta-placeholder small { font-size: 0.75rem; }
+.tarjeta-placeholder span {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #9095a1;
+}
+
+.tarjeta-placeholder small { font-size: 0.72rem; }
 
 /* -------------------- BOTON PROCESAR -------------------- */
 
@@ -320,6 +371,17 @@ body {
     display: flex;
     justify-content: center;
     margin: 26px 0 6px;
+}
+
+/* Cuando el boton "Procesar" va dentro de la tarjeta de la cedula
+   (en vez de centrado a nivel de pagina), necesita menos margen y
+   ocupar el ancho de la tarjeta. */
+.acciones-tarjeta {
+    margin: 4px 0 0;
+}
+
+.acciones-tarjeta .btn-procesar {
+    width: 100%;
 }
 
 .btn-procesar {
@@ -371,6 +433,14 @@ th { color: var(--gris-texto); font-size: 0.78rem; text-transform: uppercase; le
     align-items: center;
     gap: 10px;
     font-weight: 600;
+}
+
+/* IMPORTANTE: sin esto, el atributo [hidden] no gana contra
+   ".rui-estado { display: flex }" (misma especificidad, y la hoja
+   de estilos del autor siempre le gana a la del user-agent), asi
+   que los 3 estados del RUI se veian todos a la vez. */
+.rui-estado[hidden] {
+    display: none;
 }
 
 .spinner-minimalista {

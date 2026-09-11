@@ -3,4 +3,4 @@ __pycache__/
 test_outputs/
 test_data/
 test_image_cleaner/
-modules/ocr_module/config.py
+modules/ocr_module/config.pywebapp/historial.json

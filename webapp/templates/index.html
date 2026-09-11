@@ -35,37 +35,7 @@
     <!-- ======================= TAB: PROCESAR ======================= -->
     <section id="tab-procesar" class="tab-panel activo">
 
-        <div class="grid-uploads">
-
-            <!-- ---------- DOCUMENTO ---------- -->
-            <div class="tarjeta-upload" id="card-documento">
-                <div class="tarjeta-header">
-                    <h3><i class="fa-solid fa-file-lines"></i> Documento</h3>
-                    <select id="documento_tipo">
-                        <option value="acta_grado">Acta de grado</option>
-                        <option value="icfes">Resultado ICFES</option>
-                    </select>
-                </div>
-
-                <div class="dropzone" data-target="documento">
-                    <input type="file" id="input-documento" accept=".pdf,.png,.jpg,.jpeg" hidden>
-                    <i class="fa-solid fa-cloud-arrow-up"></i>
-                    <p>Arrastre aquí el documento (PDF)</p>
-                    <small class="nombre-archivo">Ningún archivo seleccionado</small>
-                </div>
-
-                <ol class="pasos" id="pasos-documento">
-                    <li data-stage="leyendo"><i class="fa-regular fa-circle"></i> Leyendo documento</li>
-                    <li data-stage="convirtiendo"><i class="fa-regular fa-circle"></i> Convirtiendo</li>
-                    <li data-stage="procesando"><i class="fa-regular fa-circle"></i> Procesando</li>
-                    <li data-stage="inclinacion"><i class="fa-regular fa-circle"></i> Corrigiendo inclinación</li>
-                    <li data-stage="limpiando"><i class="fa-regular fa-circle"></i> Limpiando</li>
-                </ol>
-
-                <div class="barra-progreso"><div class="barra-progreso-fill" id="barra-documento"></div></div>
-
-                <div class="resultado-caja" id="resultado-documento" hidden></div>
-            </div>
+        <div class="grid-uploads grid-uploads-solo">
 
             <!-- ---------- CEDULA ---------- -->
             <div class="tarjeta-upload" id="card-cedula">
@@ -90,34 +60,43 @@
 
                 <div class="barra-progreso"><div class="barra-progreso-fill" id="barra-cedula"></div></div>
 
-                <div class="resultado-caja" id="resultado-cedula" hidden></div>
+                <div class="acciones acciones-tarjeta">
+                    <button id="btn-procesar" class="btn-procesar" disabled>
+                        <i class="fa-solid fa-play"></i> Procesar
+                    </button>
+                </div>
             </div>
 
-            <!-- ---------- PLACEHOLDER FUTUROS DOCUMENTOS ---------- -->
-            <div class="tarjeta-upload tarjeta-placeholder">
+            <!-- ---------- RESULTADO CEDULA ---------- -->
+            <div class="tarjeta-upload" id="card-resultado">
+                <div class="tarjeta-header">
+                    <h3><i class="fa-solid fa-list-check"></i> Datos extraídos</h3>
+                </div>
+                <div class="resultado-caja resultado-caja-grande" id="resultado-cedula">
+                    <p class="resultado-vacio">Los datos aparecerán aquí después de procesar.</p>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ---------- PLACEHOLDER FUTUROS DOCUMENTOS ---------- -->
+        <div class="fila-placeholders">
+            <div class="tarjeta-placeholder">
                 <i class="fa-solid fa-plus"></i>
-                <p>Espacio para futuros documentos</p>
-                <small>Acta de grado, ICFES, certificados adicionales, etc. — próximamente</small>
+                <span>Acta de grado</span>
+                <small>próximamente</small>
             </div>
-
+            <div class="tarjeta-placeholder">
+                <i class="fa-solid fa-plus"></i>
+                <span>Resultado ICFES</span>
+                <small>próximamente</small>
+            </div>
+            <div class="tarjeta-placeholder">
+                <i class="fa-solid fa-plus"></i>
+                <span>Otros requisitos</span>
+                <small>próximamente</small>
+            </div>
         </div>
-
-        <div class="acciones">
-            <button id="btn-procesar" class="btn-procesar" disabled>
-                <i class="fa-solid fa-play"></i> Procesar
-            </button>
-        </div>
-
-        <!-- ---------- COMPARACION ---------- -->
-        <section id="seccion-comparacion" class="panel" hidden>
-            <h2>Comparación de datos</h2>
-            <table class="tabla-comparacion">
-                <thead>
-                    <tr><th>Campo</th><th>Documento</th><th>Cédula</th><th>¿Coincide?</th></tr>
-                </thead>
-                <tbody id="tabla-comparacion-body"></tbody>
-            </table>
-        </section>
 
         <!-- ---------- RUI ---------- -->
         <section id="seccion-rui" class="panel" hidden>
@@ -149,7 +128,7 @@
                         <th>Fecha</th>
                         <th>Nombre</th>
                         <th>N° Documento</th>
-                        <th>Tipo documento</th>
+                        <th>Edad</th>
                         <th>RUI</th>
                     </tr>
                 </thead>

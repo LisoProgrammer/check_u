@@ -2,10 +2,9 @@
 Check_U - Panel de pruebas locales
 -----------------------------------
 Backend Flask que conecta los modulos ya existentes del repo
-(modules/ocr_module, modules/mrz, modules/check_id) en un solo
-flujo: subir un Documento (PDF tipo acta/ICFES) + una Cedula,
-procesarlos con OCR paso a paso, comparar los campos entre ambos,
-y consultar el RUI con el numero de documento obtenido.
+(modules/ocr_module, modules/mrz, modules/check_id) para procesar
+una Cedula paso a paso (OCR + MRZ) y consultar el RUI con el
+numero de documento obtenido.
 
 Ejecutar:
     python webapp/app.py
@@ -32,12 +31,11 @@ from flask import Flask, request, jsonify, Response, render_template, stream_wit
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-from modules.ocr_module.loaders.pdf_loader import load_pdf
+from modules.ocr_module.loaders.pdf_loader import load_pdf  # respaldo (poppler)
 from modules.ocr_module.preprocess.image_cleaner import ImageCleaner
-from modules.ocr_module.preprocess.check_inclination import SkewDetector, ensure_cv_image
+from modules.ocr_module.preprocess.check_inclination import SkewDetector
 from modules.ocr_module.ocr.tesseract_engine import TesseractEngine
 from modules.ocr_module.postprocess.cleaner import TextCleaner
-from modules.ocr_module.postprocess.structure import TextStructurer
 
 from modules.mrz.normalize import normalize_line, MRZ_ALLOWED
 from modules.mrz.get_info import get_info as mrz_get_info
@@ -46,6 +44,14 @@ from modules.mrz.validate import validate_mrz
 from modules.check_id.rui.consultar import consultar as consultar_rui
 
 from PIL import Image
+
+# IMPORTANTE: Image.frombytes() (usado en la carga con PyMuPDF, mas abajo)
+# no registra los plugins de Pillow (a diferencia de Image.open(), que si
+# lo hace de forma perezosa). Sin este Image.init() explicito, el paso de
+# "procesando" fallaba con KeyError: 'JPEG' al generar el PDF de depuracion
+# en preprocess/image_cleaner.py (create_image_stage_pdf -> img.save(...)),
+# porque el encoder JPEG de Pillow nunca quedaba registrado.
+Image.init()
 
 APP_DIR = Path(__file__).resolve().parent
 HISTORIAL_PATH = APP_DIR / "historial.json"
@@ -61,7 +67,6 @@ image_cleaner = ImageCleaner(resize_width=2000)
 skew_detector = SkewDetector()
 ocr_engine = TesseractEngine()
 text_cleaner = TextCleaner()
-structurer = TextStructurer()
 
 
 # ============================================================================
@@ -94,6 +99,11 @@ def guardar_en_historial(registro):
 
 # ============================================================================
 # CARGA DE ARCHIVOS (PDF o IMAGEN)
+# ----------------------------------------------------------------------------
+# IMPORTANTE: se intenta PRIMERO con PyMuPDF (no depende de ningun binario
+# externo instalado en el sistema) y solo si eso falla se intenta con
+# poppler (pdf2image), que es lo que ya usaba el resto del proyecto.
+# Asi el panel funciona aunque poppler no este instalado/en el PATH.
 # ============================================================================
 
 def cargar_paginas(file_bytes: bytes, filename: str):
@@ -101,17 +111,20 @@ def cargar_paginas(file_bytes: bytes, filename: str):
     ext = (filename.rsplit(".", 1)[-1] if "." in filename else "").lower()
 
     if ext == "pdf":
+        error_pymupdf = None
         try:
-            # Camino "estandar" del proyecto (usa poppler, igual que
-            # modules/ocr_module/loaders/pdf_loader.py).
-            return load_pdf(file_bytes)
-        except Exception as e:
-            # En Windows es comun que poppler no este instalado / en PATH.
-            # En vez de tumbar el flujo, usamos PyMuPDF como respaldo:
-            # no depende de ningun binario externo.
-            if "poppler" not in str(e).lower() and "page count" not in str(e).lower():
-                raise
             return _cargar_pdf_con_pymupdf(file_bytes)
+        except Exception as e:
+            error_pymupdf = e
+
+        try:
+            return load_pdf(file_bytes)
+        except Exception as error_poppler:
+            raise RuntimeError(
+                "No se pudo leer el PDF. Con PyMuPDF: "
+                f"{error_pymupdf}. Con poppler: {error_poppler}. "
+                "Instala la libreria con 'pip install pymupdf' dentro del venv."
+            )
 
     # Imagen suelta (png, jpg, jpeg, etc.)
     img = Image.open(io.BytesIO(file_bytes))
@@ -120,7 +133,6 @@ def cargar_paginas(file_bytes: bytes, filename: str):
 
 
 def _cargar_pdf_con_pymupdf(file_bytes: bytes, dpi: int = 200):
-    """Respaldo sin poppler: renderiza el PDF a imagenes con PyMuPDF."""
     import pymupdf
 
     paginas = []
@@ -129,11 +141,15 @@ def _cargar_pdf_con_pymupdf(file_bytes: bytes, dpi: int = 200):
     matriz = pymupdf.Matrix(zoom, zoom)
 
     for pagina in doc:
-        pix = pagina.get_pixmap(matrix=matriz)
+        pix = pagina.get_pixmap(matrix=matriz, colorspace=pymupdf.csRGB, alpha=False)
         img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
         paginas.append(img)
 
     doc.close()
+
+    if not paginas:
+        raise RuntimeError("El PDF no tiene paginas legibles.")
+
     return paginas
 
 
@@ -238,48 +254,6 @@ def procesar_mrz(raw_text: str):
 
 
 # ============================================================================
-# NORMALIZACION PARA COMPARAR CAMPOS
-# ============================================================================
-
-def normalizar_texto(valor):
-    if not valor:
-        return ""
-    valor = str(valor).upper().strip()
-    valor = unicodedata.normalize("NFKD", valor)
-    valor = "".join(c for c in valor if not unicodedata.combining(c))
-    valor = re.sub(r"\s+", " ", valor)
-    return valor
-
-
-def normalizar_numero(valor):
-    if not valor:
-        return ""
-    return re.sub(r"\D", "", str(valor)).lstrip("0")
-
-
-def comparar_nombres(a, b):
-    a_norm, b_norm = normalizar_texto(a), normalizar_texto(b)
-    if not a_norm or not b_norm:
-        return None
-    if a_norm == b_norm:
-        return True
-    tokens_a = set(a_norm.split())
-    tokens_b = set(b_norm.split())
-    if not tokens_a or not tokens_b:
-        return False
-    interseccion = tokens_a & tokens_b
-    menor = min(len(tokens_a), len(tokens_b))
-    return len(interseccion) >= max(1, menor - 1)
-
-
-def comparar_numeros(a, b):
-    a_norm, b_norm = normalizar_numero(a), normalizar_numero(b)
-    if not a_norm or not b_norm:
-        return None
-    return a_norm == b_norm
-
-
-# ============================================================================
 # MOTOR DE PROCESAMIENTO (con eventos paso a paso)
 # ============================================================================
 
@@ -296,12 +270,8 @@ def emitir(q, **kwargs):
     q.put(kwargs)
 
 
-def procesar_documento(q, target, file_bytes, filename, tipo_documento):
-    """
-    target: "documento" | "cedula"
-    tipo_documento: "acta_grado" | "icfes" | "cedula"
-    """
-
+def procesar_cedula(q, file_bytes, filename):
+    target = "cedula"
     try:
         # ---------------- Leyendo ----------------
         emitir(q, type="stage", target=target, stage="leyendo", status="start")
@@ -317,8 +287,9 @@ def procesar_documento(q, target, file_bytes, filename, tipo_documento):
         )
 
         raw_text_total = ""
+        raw_text_mrz_total = ""
 
-        for idx, pagina in enumerate(paginas, start=1):
+        for pagina in paginas:
 
             # ---------------- Procesando (preprocesamiento de imagen) ----------------
             emitir(q, type="stage", target=target, stage="procesando", status="start")
@@ -339,30 +310,35 @@ def procesar_documento(q, target, file_bytes, filename, tipo_documento):
             emitir(q, type="stage", target=target, stage="limpiando", status="start")
             texto = ocr_engine.extract_text_with_confidence(limpia, min_confidence=40)
             raw_text_total += texto + "\n"
+
+            # Segunda pasada de OCR sin filtro de confianza, solo para
+            # buscar el MRZ: la franja del MRZ es una cadena rara de
+            # letras/digitos/"<" que Tesseract suele calificar con baja
+            # confianza por palabra (aunque lea bien los caracteres), asi
+            # que el filtro min_confidence=40 puede borrar la linea entera
+            # antes de que buscar_lineas_mrz() la vea.
+            texto_mrz = ocr_engine.extract_text_with_confidence(limpia, min_confidence=0)
+            raw_text_mrz_total += texto_mrz + "\n"
             emitir(q, type="stage", target=target, stage="limpiando", status="done")
 
         texto_limpio = text_cleaner.clean(raw_text_total)
 
-        # ---------------- Extraccion de campos ----------------
+        mrz_info = procesar_mrz(raw_text_total)
+        if not mrz_info.get("encontrado"):
+            mrz_info = procesar_mrz(raw_text_mrz_total)
+
         resultado = {
             "raw_text": raw_text_total,
             "text": texto_limpio,
-        }
-
-        if tipo_documento == "cedula":
-            mrz_info = procesar_mrz(raw_text_total)
-            resultado["mrz"] = mrz_info
-            resultado["fields"] = {
+            "mrz": mrz_info,
+            "fields": {
                 "nombre_completo": mrz_info.get("nombre_completo") if mrz_info.get("encontrado") else None,
                 "numero_documento": mrz_info.get("numero_documento") if mrz_info.get("encontrado") else None,
                 "fecha_nacimiento": mrz_info.get("fecha_nacimiento") if mrz_info.get("encontrado") else None,
                 "edad": mrz_info.get("edad") if mrz_info.get("encontrado") else None,
                 "sexo": mrz_info.get("sexo") if mrz_info.get("encontrado") else None,
-            }
-        else:
-            extraido = structurer.extract_key_fields(texto_limpio, tipo_documento)
-            resultado["fields"] = extraido.get("fields", {})
-            resultado["document_type"] = extraido.get("document_type")
+            },
+        }
 
         emitir(q, type="result", target=target, result=resultado)
         return resultado
@@ -372,67 +348,15 @@ def procesar_documento(q, target, file_bytes, filename, tipo_documento):
         return None
 
 
-def hilo_trabajo(job_id, doc_bytes, doc_name, doc_tipo, ced_bytes, ced_name):
+def hilo_trabajo(job_id, ced_bytes, ced_name):
     q = JOBS[job_id]["queue"]
 
-    resultado_doc = procesar_documento(q, "documento", doc_bytes, doc_name, doc_tipo)
-    resultado_ced = procesar_documento(q, "cedula", ced_bytes, ced_name, "cedula")
-
-    # ---------------- Comparacion ----------------
-    filas = []
-
-    if resultado_doc is not None and resultado_ced is not None:
-        f_doc = resultado_doc.get("fields", {}) or {}
-        f_ced = resultado_ced.get("fields", {}) or {}
-
-        nombre_doc = f_doc.get("nombre_completo")
-        nombre_ced = f_ced.get("nombre_completo")
-        filas.append({
-            "campo": "Nombre completo",
-            "documento": nombre_doc or "—",
-            "cedula": nombre_ced or "—",
-            "coincide": comparar_nombres(nombre_doc, nombre_ced),
-        })
-
-        num_doc = f_doc.get("numero_documento")
-        num_ced = f_ced.get("numero_documento")
-        filas.append({
-            "campo": "Numero de documento",
-            "documento": num_doc or "—",
-            "cedula": num_ced or "—",
-            "coincide": comparar_numeros(num_doc, num_ced),
-        })
-
-        filas.append({
-            "campo": "Fecha de nacimiento",
-            "documento": "—",
-            "cedula": f_ced.get("fecha_nacimiento") or "—",
-            "coincide": None,
-        })
-
-        filas.append({
-            "campo": "Edad",
-            "documento": "—",
-            "cedula": (str(f_ced.get("edad")) if f_ced.get("edad") is not None else "—"),
-            "coincide": None,
-        })
-
-        if f_doc.get("institucion_educativa"):
-            filas.append({
-                "campo": "Institucion educativa",
-                "documento": f_doc.get("institucion_educativa") or "—",
-                "cedula": "—",
-                "coincide": None,
-            })
-
-    emitir(q, type="comparison", rows=filas)
+    resultado_ced = procesar_cedula(q, ced_bytes, ced_name)
 
     # ---------------- Consulta RUI ----------------
     numero_para_rui = None
     if resultado_ced is not None:
         numero_para_rui = (resultado_ced.get("fields") or {}).get("numero_documento")
-    if not numero_para_rui and resultado_doc is not None:
-        numero_para_rui = (resultado_doc.get("fields") or {}).get("numero_documento")
 
     rui_resultado = None
 
@@ -444,25 +368,22 @@ def hilo_trabajo(job_id, doc_bytes, doc_name, doc_tipo, ced_bytes, ced_name):
         except Exception as e:
             emitir(q, type="rui", status="done", success=False, error=str(e))
     else:
-        emitir(q, type="rui", status="skipped", message="No se obtuvo un numero de documento para consultar.")
+        emitir(q, type="rui", status="skipped", message="No se obtuvo un numero de documento (MRZ) para consultar.")
 
     # ---------------- Historial ----------------
-    nombre_final = None
-    if resultado_ced is not None:
-        nombre_final = (resultado_ced.get("fields") or {}).get("nombre_completo")
-    if not nombre_final and resultado_doc is not None:
-        nombre_final = (resultado_doc.get("fields") or {}).get("nombre_completo")
+    campos = (resultado_ced or {}).get("fields") or {}
 
     registro = {
         "id": job_id,
         "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "nombre": nombre_final or "(sin determinar)",
-        "numero_documento": numero_para_rui or "(sin determinar)",
-        "tipo_documento": doc_tipo,
-        "documento_archivo": doc_name,
+        "nombre": campos.get("nombre_completo") or "(sin determinar)",
+        "numero_documento": campos.get("numero_documento") or "(sin determinar)",
+        "fecha_nacimiento": campos.get("fecha_nacimiento"),
+        "edad": campos.get("edad"),
+        "sexo": campos.get("sexo"),
         "cedula_archivo": ced_name,
+        "mrz_valido": (resultado_ced or {}).get("mrz", {}).get("valido"),
         "rui": rui_resultado,
-        "coincidencias": filas,
     }
     guardar_en_historial(registro)
     emitir(q, type="historial_actualizado")
@@ -482,14 +403,10 @@ def index():
 
 @app.route("/api/jobs", methods=["POST"])
 def crear_job():
-    if "documento" not in request.files or "cedula" not in request.files:
-        return jsonify({"error": "Se requieren los dos archivos: documento y cedula."}), 400
+    if "cedula" not in request.files:
+        return jsonify({"error": "Se requiere el archivo de la cedula."}), 400
 
-    doc_file = request.files["documento"]
     ced_file = request.files["cedula"]
-    doc_tipo = request.form.get("documento_tipo", "acta_grado")
-
-    doc_bytes = doc_file.read()
     ced_bytes = ced_file.read()
 
     job_id = uuid.uuid4().hex[:12]
@@ -500,7 +417,7 @@ def crear_job():
 
     hilo = threading.Thread(
         target=hilo_trabajo,
-        args=(job_id, doc_bytes, doc_file.filename, doc_tipo, ced_bytes, ced_file.filename),
+        args=(job_id, ced_bytes, ced_file.filename),
         daemon=True,
     )
     hilo.start()
