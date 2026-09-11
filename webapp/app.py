@@ -101,12 +101,40 @@ def cargar_paginas(file_bytes: bytes, filename: str):
     ext = (filename.rsplit(".", 1)[-1] if "." in filename else "").lower()
 
     if ext == "pdf":
-        return load_pdf(file_bytes)
+        try:
+            # Camino "estandar" del proyecto (usa poppler, igual que
+            # modules/ocr_module/loaders/pdf_loader.py).
+            return load_pdf(file_bytes)
+        except Exception as e:
+            # En Windows es comun que poppler no este instalado / en PATH.
+            # En vez de tumbar el flujo, usamos PyMuPDF como respaldo:
+            # no depende de ningun binario externo.
+            if "poppler" not in str(e).lower() and "page count" not in str(e).lower():
+                raise
+            return _cargar_pdf_con_pymupdf(file_bytes)
 
     # Imagen suelta (png, jpg, jpeg, etc.)
     img = Image.open(io.BytesIO(file_bytes))
     img = img.convert("RGB")
     return [img]
+
+
+def _cargar_pdf_con_pymupdf(file_bytes: bytes, dpi: int = 200):
+    """Respaldo sin poppler: renderiza el PDF a imagenes con PyMuPDF."""
+    import pymupdf
+
+    paginas = []
+    doc = pymupdf.open(stream=file_bytes, filetype="pdf")
+    zoom = dpi / 72.0
+    matriz = pymupdf.Matrix(zoom, zoom)
+
+    for pagina in doc:
+        pix = pagina.get_pixmap(matrix=matriz)
+        img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+        paginas.append(img)
+
+    doc.close()
+    return paginas
 
 
 # ============================================================================
