@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Check_U · Panel de administrador</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+</head>
+<body>
+
+<header class="banner-principal">
+    <div class="banner-principal-inner">
+        <span class="logo-mark">U</span>
+        <h1>Check_U</h1>
+        <span class="badge-entorno">Entorno de pruebas local</span>
+    </div>
+</header>
+
+<nav class="banner-menu">
+    <div class="banner-menu-inner">
+        <button class="tab-btn activo" data-tab="procesar">
+            <i class="fa-solid fa-file-circle-check"></i> Procesar
+            <small>Menu actual en desarrollo</small>
+        </button>
+        <button class="tab-btn" data-tab="historial">
+            <i class="fa-solid fa-clock-rotate-left"></i> Historial
+            <small>Graduados ya procesados</small>
+        </button>
+    </div>
+</nav>
+
+<main class="contenedor">
+
+    <!-- ======================= TAB: PROCESAR ======================= -->
+    <section id="tab-procesar" class="tab-panel activo">
+
+        <div class="grid-uploads">
+
+            <!-- ---------- DOCUMENTO ---------- -->
+            <div class="tarjeta-upload" id="card-documento">
+                <div class="tarjeta-header">
+                    <h3><i class="fa-solid fa-file-lines"></i> Documento</h3>
+                    <select id="documento_tipo">
+                        <option value="acta_grado">Acta de grado</option>
+                        <option value="icfes">Resultado ICFES</option>
+                    </select>
+                </div>
+
+                <div class="dropzone" data-target="documento">
+                    <input type="file" id="input-documento" accept=".pdf,.png,.jpg,.jpeg" hidden>
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <p>Arrastre aquí el documento (PDF)</p>
+                    <small class="nombre-archivo">Ningún archivo seleccionado</small>
+                </div>
+
+                <ol class="pasos" id="pasos-documento">
+                    <li data-stage="leyendo"><i class="fa-regular fa-circle"></i> Leyendo documento</li>
+                    <li data-stage="convirtiendo"><i class="fa-regular fa-circle"></i> Convirtiendo</li>
+                    <li data-stage="procesando"><i class="fa-regular fa-circle"></i> Procesando</li>
+                    <li data-stage="inclinacion"><i class="fa-regular fa-circle"></i> Corrigiendo inclinación</li>
+                    <li data-stage="limpiando"><i class="fa-regular fa-circle"></i> Limpiando</li>
+                </ol>
+
+                <div class="barra-progreso"><div class="barra-progreso-fill" id="barra-documento"></div></div>
+
+                <div class="resultado-caja" id="resultado-documento" hidden></div>
+            </div>
+
+            <!-- ---------- CEDULA ---------- -->
+            <div class="tarjeta-upload" id="card-cedula">
+                <div class="tarjeta-header">
+                    <h3><i class="fa-solid fa-id-card"></i> Cédula</h3>
+                </div>
+
+                <div class="dropzone" data-target="cedula">
+                    <input type="file" id="input-cedula" accept=".pdf,.png,.jpg,.jpeg" hidden>
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <p>Arrastre aquí la cédula (PDF o imagen)</p>
+                    <small class="nombre-archivo">Ningún archivo seleccionado</small>
+                </div>
+
+                <ol class="pasos" id="pasos-cedula">
+                    <li data-stage="leyendo"><i class="fa-regular fa-circle"></i> Leyendo documento</li>
+                    <li data-stage="convirtiendo"><i class="fa-regular fa-circle"></i> Convirtiendo</li>
+                    <li data-stage="procesando"><i class="fa-regular fa-circle"></i> Procesando</li>
+                    <li data-stage="inclinacion"><i class="fa-regular fa-circle"></i> Corrigiendo inclinación</li>
+                    <li data-stage="limpiando"><i class="fa-regular fa-circle"></i> Limpiando</li>
+                </ol>
+
+                <div class="barra-progreso"><div class="barra-progreso-fill" id="barra-cedula"></div></div>
+
+                <div class="resultado-caja" id="resultado-cedula" hidden></div>
+            </div>
+
+            <!-- ---------- PLACEHOLDER FUTUROS DOCUMENTOS ---------- -->
+            <div class="tarjeta-upload tarjeta-placeholder">
+                <i class="fa-solid fa-plus"></i>
+                <p>Espacio para futuros documentos</p>
+                <small>Acta de grado, ICFES, certificados adicionales, etc. — próximamente</small>
+            </div>
+
+        </div>
+
+        <div class="acciones">
+            <button id="btn-procesar" class="btn-procesar" disabled>
+                <i class="fa-solid fa-play"></i> Procesar
+            </button>
+        </div>
+
+        <!-- ---------- COMPARACION ---------- -->
+        <section id="seccion-comparacion" class="panel" hidden>
+            <h2>Comparación de datos</h2>
+            <table class="tabla-comparacion">
+                <thead>
+                    <tr><th>Campo</th><th>Documento</th><th>Cédula</th><th>¿Coincide?</th></tr>
+                </thead>
+                <tbody id="tabla-comparacion-body"></tbody>
+            </table>
+        </section>
+
+        <!-- ---------- RUI ---------- -->
+        <section id="seccion-rui" class="panel" hidden>
+            <h2>Consulta RUI (DNP)</h2>
+            <div id="rui-cargando" class="rui-estado" hidden>
+                <div class="spinner-minimalista"></div>
+                <span>Consultando el RUI…</span>
+            </div>
+            <div id="rui-ok" class="rui-estado" hidden>
+                <i class="fa-solid fa-circle-check rui-check"></i>
+                <span>Consulta completada</span>
+            </div>
+            <div id="rui-error" class="rui-estado" hidden>
+                <i class="fa-solid fa-circle-xmark rui-x"></i>
+                <span id="rui-error-msg">No se pudo consultar el RUI</span>
+            </div>
+            <div id="rui-datos" class="rui-datos" hidden></div>
+        </section>
+
+    </section>
+
+    <!-- ======================= TAB: HISTORIAL ======================= -->
+    <section id="tab-historial" class="tab-panel">
+        <h2>Graduados procesados</h2>
+        <div class="tabla-scroll">
+            <table class="tabla-historial">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Nombre</th>
+                        <th>N° Documento</th>
+                        <th>Tipo documento</th>
+                        <th>RUI</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-historial-body">
+                    <tr><td colspan="5" class="vacio">Aún no se ha procesado ningún graduado.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+</main>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
