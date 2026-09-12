@@ -15,6 +15,22 @@ python webapp\app.py
 
 Abre `http://localhost:5000`.
 
+Antes de arrancar, `app.py` corre un verificador de entorno
+(`webapp/entorno.py`): revisa que Tesseract OCR esté instalado y en el
+PATH (con el paquete de idioma español), que haya alguna forma de leer
+PDF (PyMuPDF o poppler), y que los paquetes de Python necesarios estén
+instalados. Si falta algo, el servidor **no arranca** — se imprime en
+la terminal exactamente qué falta y cómo instalarlo, en vez de dejar
+que el error aparezca a mitad de un procesamiento real. También se
+puede correr aparte, sin levantar el servidor, para diagnosticar:
+
+```
+python webapp\entorno.py
+```
+
+El panel web también consulta esto por su cuenta (`GET /api/salud`) y
+muestra un banner naranja arriba de todo si algo quedó mal configurado.
+
 ## Qué hace
 
 1. Subes una **Cédula** (PDF o imagen).

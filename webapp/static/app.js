@@ -3,6 +3,42 @@
 // ============================================================
 
 let archivoCedula = null;
+let entornoOk = true; // se confirma con /api/salud apenas carga la pagina
+
+function actualizarBotonProcesar() {
+    document.getElementById("btn-procesar").disabled = !(archivoCedula && entornoOk);
+}
+
+// ------------------------------------------------------------
+// VERIFICACION DE ENTORNO (Tesseract / PyMuPDF-poppler / paquetes)
+// ------------------------------------------------------------
+async function verificarEntorno() {
+    const banner = document.getElementById("banner-entorno");
+    const lista = document.getElementById("banner-entorno-lista");
+    try {
+        const resp = await fetch("/api/salud");
+        const datos = await resp.json();
+        entornoOk = datos.ok;
+
+        if (datos.ok) {
+            banner.hidden = true;
+        } else {
+            lista.innerHTML = datos.problemas.map((p) => `
+                <li><strong>${p.componente}:</strong> ${p.detalle}
+                    <div class="banner-entorno-solucion">${p.solucion}</div>
+                </li>`).join("");
+            banner.hidden = false;
+        }
+    } catch (e) {
+        // Si ni siquiera responde /api/salud, no molestamos con el banner:
+        // el problema ya se habria visto al arrancar el servidor. Se asume
+        // que el entorno esta bien para no bloquear el boton sin motivo.
+        entornoOk = true;
+    }
+    actualizarBotonProcesar();
+}
+
+verificarEntorno();
 
 // ------------------------------------------------------------
 // TABS
@@ -29,7 +65,7 @@ function configurarDropzone() {
         archivoCedula = file;
         zona.classList.add("tiene-archivo");
         zona.querySelector(".nombre-archivo").textContent = file.name;
-        document.getElementById("btn-procesar").disabled = false;
+        actualizarBotonProcesar();
     };
 
     zona.addEventListener("click", () => input.click());
@@ -194,7 +230,7 @@ document.getElementById("btn-procesar").addEventListener("click", async () => {
         jobId = data.job_id;
     } catch (err) {
         alert("No se pudo iniciar el procesamiento: " + err.message);
-        boton.disabled = false;
+        actualizarBotonProcesar();
         return;
     }
 
@@ -222,14 +258,14 @@ document.getElementById("btn-procesar").addEventListener("click", async () => {
                 break;
             case "done":
                 fuente.close();
-                boton.disabled = false;
+                actualizarBotonProcesar();
                 break;
         }
     };
 
     fuente.onerror = () => {
         fuente.close();
-        boton.disabled = false;
+        actualizarBotonProcesar();
     };
 });
 

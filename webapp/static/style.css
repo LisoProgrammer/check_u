@@ -128,6 +128,46 @@ body {
 .tab-panel { display: none; }
 .tab-panel.activo { display: block; }
 
+/* -------------------- AVISO DE ENTORNO -------------------- */
+
+.banner-entorno {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: #fff4ec;
+    border: 1px solid var(--utb-naranja);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 18px;
+    color: #7a2f0f;
+}
+
+.banner-entorno[hidden] {
+    display: none;
+}
+
+.banner-entorno > i {
+    color: var(--utb-naranja);
+    font-size: 1.3rem;
+    margin-top: 2px;
+}
+
+.banner-entorno-texto ul {
+    margin: 8px 0 0;
+    padding-left: 18px;
+}
+
+.banner-entorno-texto li {
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+}
+
+.banner-entorno-solucion {
+    color: #8a5a3d;
+    font-size: 0.82rem;
+    margin-top: 2px;
+}
+
 .panel {
     background: #fff;
     border: 1px solid var(--gris-borde);

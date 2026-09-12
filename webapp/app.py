@@ -31,19 +31,40 @@ from flask import Flask, request, jsonify, Response, render_template, stream_wit
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-from modules.ocr_module.loaders.pdf_loader import load_pdf  # respaldo (poppler)
-from modules.ocr_module.preprocess.image_cleaner import ImageCleaner
-from modules.ocr_module.preprocess.check_inclination import SkewDetector
-from modules.ocr_module.ocr.tesseract_engine import TesseractEngine
-from modules.ocr_module.postprocess.cleaner import TextCleaner
+# Verificador de entorno (paquetes de Python + Tesseract/poppler/PyMuPDF).
+# Se importa primero y con su propio manejo de errores porque, si falta
+# un paquete de Python (ej. opencv-python), las importaciones de abajo
+# fallarian con un traceback crudo antes de poder mostrar un mensaje claro.
+# "entorno" (sin "webapp.") porque al correr "python webapp/app.py" Python
+# agrega automaticamente la carpeta del script (webapp/) al sys.path.
+from entorno import verificar_entorno, imprimir_reporte
 
-from modules.mrz.normalize import normalize_line, MRZ_ALLOWED
-from modules.mrz.get_info import get_info as mrz_get_info
-from modules.mrz.validate import validate_mrz
+try:
+    from modules.ocr_module.loaders.pdf_loader import load_pdf  # respaldo (poppler)
+    from modules.ocr_module.preprocess.image_cleaner import ImageCleaner
+    from modules.ocr_module.preprocess.check_inclination import SkewDetector
+    from modules.ocr_module.ocr.tesseract_engine import TesseractEngine
+    from modules.ocr_module.postprocess.cleaner import TextCleaner
 
-from modules.check_id.rui.consultar import consultar as consultar_rui
+    from modules.mrz.normalize import normalize_line, MRZ_ALLOWED
+    from modules.mrz.get_info import get_info as mrz_get_info
+    from modules.mrz.validate import validate_mrz
 
-from PIL import Image
+    from modules.check_id.rui.consultar import consultar as consultar_rui
+
+    from PIL import Image
+except ImportError as e:
+    print("=" * 70)
+    print("Check_U: falta un paquete de Python para poder arrancar.")
+    print("=" * 70)
+    print(f"\nDetalle: {e}")
+    print(
+        "\nSolucion: activa el entorno virtual (venv) y corre "
+        "'.\\setup_windows.ps1' de nuevo, o instala el paquete que falta "
+        "a mano con pip dentro del venv."
+    )
+    print("=" * 70)
+    sys.exit(1)
 
 # IMPORTANTE: Image.frombytes() (usado en la carga con PyMuPDF, mas abajo)
 # no registra los plugins de Pillow (a diferencia de Image.open(), que si
@@ -449,6 +470,28 @@ def api_historial():
     return jsonify(leer_historial())
 
 
+@app.route("/api/salud")
+def api_salud():
+    """
+    Verifica el entorno (Tesseract, PyMuPDF/poppler, paquetes de Python)
+    en caliente, para que el panel pueda avisar en pantalla si algo
+    quedo mal configurado, en vez de que el usuario se entere a mitad
+    de un procesamiento con una alerta suelta del navegador.
+    """
+    problemas = verificar_entorno()
+    return jsonify({"ok": not problemas, "problemas": problemas})
+
+
 if __name__ == "__main__":
+    # Verificacion de entorno ANTES de arrancar el servidor: si falta
+    # Tesseract, el idioma español, o una forma de leer PDF, se avisa
+    # aqui con una solucion concreta y NO se arranca el servidor. Asi
+    # el problema aparece una sola vez, claro, en la terminal - no a
+    # mitad de un procesamiento real.
+    problemas_entorno = verificar_entorno()
+    imprimir_reporte(problemas_entorno)
+    if problemas_entorno:
+        sys.exit(1)
+
     print("Check_U webapp: http://localhost:5000")
     app.run(host="0.0.0.0", port=5000, debug=True, threaded=True)

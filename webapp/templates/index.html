@@ -32,6 +32,15 @@
 
 <main class="contenedor">
 
+    <!-- ---------- AVISO DE ENTORNO (Tesseract/PyMuPDF/poppler faltante) ---------- -->
+    <div id="banner-entorno" class="banner-entorno" hidden>
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <div class="banner-entorno-texto">
+            <strong>Falta configurar algo antes de poder procesar documentos:</strong>
+            <ul id="banner-entorno-lista"></ul>
+        </div>
+    </div>
+
     <!-- ======================= TAB: PROCESAR ======================= -->
     <section id="tab-procesar" class="tab-panel activo">
 
