@@ -49,7 +49,6 @@ if (-not $tesseract) {
         $tesseract = Get-Command tesseract -ErrorAction SilentlyContinue
         if ($tesseract) {
             Write-Host "Tesseract instalado: $($tesseract.Source)" -ForegroundColor Green
-            Write-Host "IMPORTANTE: abre una terminal nueva (o reinicia PowerShell/VS Code) antes de correr 'run_webapp.ps1', para que el PATH quede guardado de forma permanente." -ForegroundColor Yellow
         } else {
             Write-Host "No se pudo confirmar la instalacion. Instalalo a mano desde https://github.com/UB-Mannheim/tesseract/wiki (marca 'Add to PATH' y el idioma 'Spanish')." -ForegroundColor Red
         }
@@ -60,7 +59,34 @@ if (-not $tesseract) {
     }
 } else {
     Write-Host "Tesseract encontrado: $($tesseract.Source)" -ForegroundColor Green
-    tesseract --list-langs
+}
+
+if ($tesseract) {
+    # winget instala Tesseract en modo silencioso, sin el selector de
+    # idiomas del instalador interactivo - asi que casi siempre falta
+    # 'spa' (espanol). Lo descargamos aparte si no esta, en vez de pedir
+    # reinstalar todo a mano.
+    $tesseractDir = Split-Path $tesseract.Source -Parent
+    $tessdataDir = Join-Path $tesseractDir "tessdata"
+    $spaFile = Join-Path $tessdataDir "spa.traineddata"
+
+    $idiomas = & tesseract --list-langs 2>&1
+    Write-Host $idiomas
+
+    if (Test-Path $spaFile) {
+        Write-Host "Paquete de idioma espanol (spa) ya esta instalado." -ForegroundColor Green
+    } elseif (Test-Path $tessdataDir) {
+        Write-Host "Falta el paquete de idioma espanol (spa). Descargandolo..." -ForegroundColor Yellow
+        try {
+            Invoke-WebRequest -Uri "https://github.com/tesseract-ocr/tessdata/raw/main/spa.traineddata" -OutFile $spaFile
+            Write-Host "Paquete de idioma espanol instalado en $spaFile" -ForegroundColor Green
+        } catch {
+            Write-Host "No se pudo descargar automaticamente: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "Descargalo a mano desde https://github.com/tesseract-ocr/tessdata y colocalo en $tessdataDir" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "No se encontro la carpeta tessdata en $tessdataDir para agregar el idioma espanol; revisa tu instalacion de Tesseract." -ForegroundColor Yellow
+    }
 }
 
 Write-Host "`n== 5. Verificando lectura de PDF (PyMuPDF / Poppler) ==" -ForegroundColor Cyan
@@ -90,5 +116,5 @@ if ($entornoOk) {
     Write-Host "  Luego abre http://localhost:5000 en el navegador." -ForegroundColor White
 } else {
     Write-Host "`n== Falta corregir algo antes de usar el panel ==" -ForegroundColor Yellow
-    Write-Host "Revisa el reporte de arriba. Si instalaste Tesseract recien, es posible que necesites ABRIR UNA TERMINAL NUEVA para que el PATH quede guardado, y luego volver a correr '.\setup_windows.ps1' para confirmar." -ForegroundColor Yellow
+    Write-Host "Revisa el reporte de arriba. Si acabas de instalar algo y el problema persiste, prueba a abrir una terminal nueva (o reiniciar VS Code) y correr '.\setup_windows.ps1' otra vez." -ForegroundColor Yellow
 }
