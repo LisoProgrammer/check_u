@@ -29,7 +29,14 @@ python webapp\entorno.py
 ```
 
 El panel web también consulta esto por su cuenta (`GET /api/salud`) y
-muestra un banner naranja arriba de todo si algo quedó mal configurado.
+muestra un banner naranja arriba de todo si algo quedó mal configurado
+(y el botón "Procesar" queda deshabilitado mientras tanto).
+
+`setup_windows.ps1` (en la raíz del proyecto, fuera de `webapp/`) ya
+intenta instalar Tesseract automáticamente con `winget` si detecta que
+falta, y al final corre `entorno.py` para confirmar que quedó todo
+listo. Si el equipo no tiene `winget`, o la instalación automática
+falla, el script deja las instrucciones manuales igual.
 
 ## Qué hace
 
