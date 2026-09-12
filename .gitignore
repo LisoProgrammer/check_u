@@ -3,4 +3,10 @@ __pycache__/
 test_outputs/
 test_data/
 test_image_cleaner/
-modules/ocr_module/config.pywebapp/historial.json
+modules/ocr_module/config.py
+webapp/historial.json
+
+# Cedulas reales usadas para pruebas locales: no deben subirse al
+# repositorio (contienen nombre, numero de documento y fecha de
+# nacimiento de personas reales).
+test_samples/

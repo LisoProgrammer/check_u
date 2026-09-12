@@ -59,9 +59,9 @@ except ImportError as e:
     print("=" * 70)
     print(f"\nDetalle: {e}")
     print(
-        "\nSolucion: activa el entorno virtual (venv) y corre "
-        "'.\\setup_windows.ps1' de nuevo, o instala el paquete que falta "
-        "a mano con pip dentro del venv."
+        "\nSolucion: corre '.\\iniciar.ps1' de nuevo (reinstala lo que "
+        "falte en el venv), o instala el paquete que falta a mano con "
+        "pip dentro del venv."
     )
     print("=" * 70)
     sys.exit(1)

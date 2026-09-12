@@ -7,13 +7,20 @@ procesamiento de una **cédula** con documentos reales.
 
 ## Cómo correrlo
 
+Desde la raíz del proyecto (fuera de `webapp/`):
+
 ```
-.\venv\Scripts\Activate.ps1      # o el equivalente en tu entorno
-pip install flask requests pymupdf   # si no se instalaron ya con setup_windows.ps1
-python webapp\app.py
+.\iniciar.ps1
 ```
 
-Abre `http://localhost:5000`.
+Ese script hace todo (instalar dependencias, Tesseract, etc. si hace
+falta) y al final abre `http://localhost:5000` en el navegador solo.
+Ver el `README.md` de la raíz para el detalle. Si preferís correrlo a
+mano dentro de un venv ya armado:
+
+```
+.\venv\Scripts\python.exe webapp\app.py
+```
 
 Antes de arrancar, `app.py` corre un verificador de entorno
 (`webapp/entorno.py`): revisa que Tesseract OCR esté instalado y en el
@@ -32,21 +39,27 @@ El panel web también consulta esto por su cuenta (`GET /api/salud`) y
 muestra un banner naranja arriba de todo si algo quedó mal configurado
 (y el botón "Procesar" queda deshabilitado mientras tanto).
 
-`setup_windows.ps1` (en la raíz del proyecto, fuera de `webapp/`) ya
-intenta instalar Tesseract automáticamente con `winget` si detecta que
-falta, y al final corre `entorno.py` para confirmar que quedó todo
-listo. Si el equipo no tiene `winget`, o la instalación automática
+`iniciar.ps1` (en la raíz del proyecto, fuera de `webapp/`; antes
+eran dos scripts separados, `setup_windows.ps1` y `run_webapp.ps1`,
+ahora fusionados en uno solo) ya intenta instalar Tesseract
+automáticamente con `winget` si detecta que falta, y al final corre
+`entorno.py` para confirmar que quedó todo listo antes de abrir el
+panel. Si el equipo no tiene `winget`, o la instalación automática
 falla, el script deja las instrucciones manuales igual.
 
-- **Bug encontrado con la instalación automática: `run_webapp.ps1`
-  fallaba con "no se encontró tesseract en el PATH" justo después de
-  que `setup_windows.ps1` terminara bien, en la misma terminal.**
+- **Bug encontrado con la instalación automática (cuando esto vivía en
+  dos scripts separados): `run_webapp.ps1` fallaba con "no se
+  encontró tesseract en el PATH" justo después de que
+  `setup_windows.ps1` terminara bien, en la misma terminal.**
   Causa: el instalador silencioso de `winget` deja `tesseract.exe` en
   disco pero no siempre agrega su carpeta al PATH permanente (el que
-  queda guardado en el registro de Windows); `setup_windows.ps1` lo
+  queda guardado en el registro de Windows); el primer script lo
   encontraba porque lo agregaba al PATH de *ese* proceso nada más, y
   ese arreglo temporal se perdía al re-activar el venv en el siguiente
-  script. Se corrigió en dos frentes: (1) `setup_windows.ps1` ahora
+  script. Se corrigió en dos frentes (y de paso, al fusionar todo en
+  `iniciar.ps1`, este problema específico de "un script deja el PATH y
+  el siguiente lo pierde" ya no puede volver a pasar, porque ahora es
+  un solo proceso de principio a fin): (1) el script ahora
   guarda la carpeta de Tesseract de forma **permanente** en el PATH de
   Usuario (`[Environment]::SetEnvironmentVariable(...,"User")`) apenas
   lo encuentra; (2) `entorno.py` ya no depende solo del PATH heredado:
@@ -110,7 +123,7 @@ de progreso llenándose según el porcentaje del proceso.
   sigue funcionando igual — así que ya no debería depender de que
   poppler esté instalado en Windows. **Importante:** para que esto
   funcione hace falta tener `pymupdf` instalado en el venv
-  (`pip install pymupdf`, ya está agregado a `setup_windows.ps1`) — si
+  (`pip install pymupdf`, ya está agregado a `iniciar.ps1`) — si
   ya habían creado el venv antes de este cambio, hay que instalarlo a
   mano una vez.
 

@@ -36,7 +36,7 @@ def _combinar_path(actual: str, adicionales: list) -> str:
 def _refrescar_path_windows():
     """
     En Windows, un instalador (como el que corre 'winget install' dentro
-    de setup_windows.ps1) escribe la carpeta nueva en el PATH de Usuario
+    de iniciar.ps1) escribe la carpeta nueva en el PATH de Usuario
     o de Maquina (en el registro), pero eso NO actualiza el PATH que ya
     tiene cargado un proceso que ya estaba abierto (esta terminal, o el
     servidor Flask en modo debug) -- normalmente hay que abrir una
@@ -174,7 +174,7 @@ def verificar_entorno():
                         "defecto)."
                     ),
                     "solucion": (
-                        "Vuelve a correr '.\\setup_windows.ps1': ya intenta "
+                        "Vuelve a correr '.\\iniciar.ps1': ya intenta "
                         "descargar spa.traineddata automaticamente. Si eso "
                         "falla, descargalo a mano desde "
                         "https://github.com/tesseract-ocr/tessdata y colocalo "
