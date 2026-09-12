@@ -62,11 +62,34 @@ if (-not $tesseract) {
 }
 
 if ($tesseract) {
+    $tesseractDir = Split-Path $tesseract.Source -Parent
+
+    # El instalador silencioso de winget deja tesseract.exe en disco pero
+    # NO siempre agrega su carpeta al PATH de Usuario/Maquina (el que
+    # queda guardado de forma permanente en el registro de Windows) -
+    # esto es lo que causaba que, aunque este mismo script lo encontrara
+    # bien, 'run_webapp.ps1' fallara despues al buscarlo (una terminal
+    # nueva, o volver a activar el venv, no tenian de donde heredarlo).
+    # Lo agregamos aqui de forma permanente para que no vuelva a pasar.
+    try {
+        $pathUsuario = [Environment]::GetEnvironmentVariable("Path", "User")
+        if ($pathUsuario -notlike "*$tesseractDir*") {
+            Write-Host "Agregando '$tesseractDir' al PATH de Usuario (permanente)..." -ForegroundColor Yellow
+            $nuevoPathUsuario = if ([string]::IsNullOrEmpty($pathUsuario)) { $tesseractDir } else { "$pathUsuario;$tesseractDir" }
+            [Environment]::SetEnvironmentVariable("Path", $nuevoPathUsuario, "User")
+            Write-Host "Listo. Quedara disponible en terminales nuevas sin repetir este paso." -ForegroundColor Green
+        }
+    } catch {
+        Write-Host "No se pudo guardar el PATH de forma permanente ($($_.Exception.Message)); no es grave, el panel web igual lo detecta por su cuenta." -ForegroundColor Yellow
+    }
+    if ($env:Path -notlike "*$tesseractDir*") {
+        $env:Path += ";$tesseractDir"
+    }
+
     # winget instala Tesseract en modo silencioso, sin el selector de
     # idiomas del instalador interactivo - asi que casi siempre falta
     # 'spa' (espanol). Lo descargamos aparte si no esta, en vez de pedir
     # reinstalar todo a mano.
-    $tesseractDir = Split-Path $tesseract.Source -Parent
     $tessdataDir = Join-Path $tesseractDir "tessdata"
     $spaFile = Join-Path $tessdataDir "spa.traineddata"
 

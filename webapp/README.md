@@ -38,6 +38,27 @@ falta, y al final corre `entorno.py` para confirmar que quedó todo
 listo. Si el equipo no tiene `winget`, o la instalación automática
 falla, el script deja las instrucciones manuales igual.
 
+- **Bug encontrado con la instalación automática: `run_webapp.ps1`
+  fallaba con "no se encontró tesseract en el PATH" justo después de
+  que `setup_windows.ps1` terminara bien, en la misma terminal.**
+  Causa: el instalador silencioso de `winget` deja `tesseract.exe` en
+  disco pero no siempre agrega su carpeta al PATH permanente (el que
+  queda guardado en el registro de Windows); `setup_windows.ps1` lo
+  encontraba porque lo agregaba al PATH de *ese* proceso nada más, y
+  ese arreglo temporal se perdía al re-activar el venv en el siguiente
+  script. Se corrigió en dos frentes: (1) `setup_windows.ps1` ahora
+  guarda la carpeta de Tesseract de forma **permanente** en el PATH de
+  Usuario (`[Environment]::SetEnvironmentVariable(...,"User")`) apenas
+  lo encuentra; (2) `entorno.py` ya no depende solo del PATH heredado:
+  si no lo encuentra ahí, revisa directo las carpetas típicas de
+  instalación en disco (`C:\Program Files\Tesseract-OCR\`, etc.) antes
+  de reportar el problema, así que el panel lo detecta aunque el PATH
+  de la terminal esté desactualizado. Probado con `pwsh` en un entorno
+  simulado (rutas y ejecutables falsos) porque no tengo una máquina
+  Windows real a mano; el mecanismo de escritura permanente en el PATH
+  de Usuario no se puede probar de extremo a extremo fuera de Windows,
+  así que avísenme si con esto sigue pasando.
+
 ## Qué hace
 
 1. Subes una **Cédula** (PDF o imagen).

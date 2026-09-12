@@ -77,12 +77,55 @@ def _refrescar_path_windows():
         os.environ["PATH"] = _combinar_path(os.environ.get("PATH", ""), adicionales)
 
 
+UBICACIONES_COMUNES_TESSERACT_WINDOWS = [
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+]
+
+
+def _agregar_carpetas_de_ejecutables(ruta_path_actual: str, rutas_candidatas: list) -> str:
+    """
+    Dado un PATH y una lista de rutas de ARCHIVOS candidatos (ej. a un
+    .exe), agrega al PATH la carpeta de cada uno que exista en disco y
+    que aun no este en el PATH. Funcion pura (recibe el PATH como texto
+    y una funcion 'existe' inyectable) para poder probarla sin tocar el
+    sistema de archivos real.
+    """
+    carpetas = []
+    for ruta in rutas_candidatas:
+        if os.path.isfile(ruta):
+            carpetas.append(os.path.dirname(ruta))
+    return _combinar_path(ruta_path_actual, carpetas)
+
+
+def _buscar_tesseract_en_ubicaciones_comunes():
+    """
+    Si 'tesseract' sigue sin aparecer en el PATH (incluso despues de
+    _refrescar_path_windows), se revisa directo si el .exe esta en las
+    carpetas tipicas de instalacion en Windows. Esto cubre el caso real
+    que nos paso: el instalador silencioso de winget deja tesseract.exe
+    instalado, pero SIN agregar su carpeta al PATH de Usuario/Maquina
+    (ni con una terminal nueva se nota) -- asi que ni el paso anterior
+    (leer el registro) encuentra nada, porque ahi tampoco esta.
+    """
+    if sys.platform != "win32":
+        return
+
+    if shutil.which("tesseract"):
+        return  # ya se encuentra, no hace falta nada mas
+
+    os.environ["PATH"] = _agregar_carpetas_de_ejecutables(
+        os.environ.get("PATH", ""), UBICACIONES_COMUNES_TESSERACT_WINDOWS
+    )
+
+
 def verificar_entorno():
     """
     Devuelve una lista de problemas encontrados (vacia si todo esta
     bien). Cada problema es un dict con: componente, detalle, solucion.
     """
     _refrescar_path_windows()
+    _buscar_tesseract_en_ubicaciones_comunes()
 
     problemas = []
 
