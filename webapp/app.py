@@ -227,6 +227,21 @@ def calcular_edad(anio: int, mes: int, dia: int):
     return edad
 
 
+# Mapa inverso al de modules/mrz/normalize.py (que corrige letra->digito):
+# aca se usa para tolerar la confusion mas comun al leer "COL" (la
+# nacionalidad, un campo de LETRAS) -- Tesseract confunde muy seguido la
+# "O" con un "0", incluso en cedulas donde el resto del MRZ se leyo bien.
+# Sin esto, la nota de "nacionalidad distinta" saldria en casi todas las
+# cedulas colombianas por ese solo motivo, en vez de solo cuando de verdad
+# hay algo raro.
+_CORRECCION_DIGITO_A_LETRA = {"0": "O", "1": "I", "5": "S", "8": "B", "2": "Z", "6": "G", "7": "T"}
+
+
+def _nacionalidad_parece(nacionalidad: str, esperada: str = "COL") -> bool:
+    corregida = "".join(_CORRECCION_DIGITO_A_LETRA.get(c, c) for c in nacionalidad)
+    return corregida == esperada
+
+
 def procesar_mrz(raw_text: str):
     lineas = buscar_lineas_mrz(raw_text)
     if not lineas:
@@ -260,16 +275,34 @@ def procesar_mrz(raw_text: str):
 
     nombre_completo = f"{info.given_names} {info.surname}".strip()
 
+    # La nacionalidad va justo antes del numero de documento en la misma
+    # linea del MRZ (line2[15:18] seguido de line2[18:28]). Si no se leyo
+    # "COL", puede ser simplemente un documento de un extranjero, pero
+    # tambien es la señal mas practica que tenemos de que el OCR perdio o
+    # agrego un caracter en algun punto anterior de esa linea -- lo que
+    # correria (desalinearia) todos los campos de posicion fija que vienen
+    # despues, incluido el numero de documento. Se informa como dato, sin
+    # decidir por el usuario si el numero es confiable o no.
+    avisos = list(validacion.warnings)
+    if not _nacionalidad_parece(info.nationality):
+        avisos.append(
+            f"Nacionalidad leída: '{info.nationality}' (distinta de 'COL'). "
+            "Puede ser un documento de un extranjero, o el MRZ se leyó "
+            "corrido/desalineado -- conviene revisar el número de "
+            "documento a mano en ese caso."
+        )
+
     return {
         "encontrado": True,
         "valido": validacion.valid,
-        "avisos": validacion.warnings,
+        "avisos": avisos,
         "errores": validacion.errors,
         "nombre_completo": nombre_completo,
         "numero_documento": info.document_number.replace("<", "").strip(),
         "fecha_nacimiento": fecha_nacimiento,
         "edad": edad,
         "sexo": info.sex,
+        "nacionalidad": info.nationality,
         "lineas": lineas,
     }
 
