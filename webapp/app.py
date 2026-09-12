@@ -46,7 +46,7 @@ try:
     from modules.ocr_module.ocr.tesseract_engine import TesseractEngine
     from modules.ocr_module.postprocess.cleaner import TextCleaner
 
-    from modules.mrz.normalize import normalize_line, MRZ_ALLOWED
+    from modules.mrz.normalize import normalize_line, normalize_numeric_field, MRZ_ALLOWED
     from modules.mrz.get_info import get_info as mrz_get_info
     from modules.mrz.validate import validate_mrz
 
@@ -308,6 +308,149 @@ def procesar_mrz(raw_text: str):
 
 
 # ============================================================================
+# EXTRACCION POR ETIQUETAS (respaldo/cruce cuando el MRZ falla o se corre)
+# ----------------------------------------------------------------------------
+# La cedula tambien imprime el numero y el nombre como texto NORMAL y
+# grande en el frente ("NUIP 1.043.964.337", "Apellidos"/"Nombres"), ademas
+# de en el MRZ (chiquito, atras, y en la cedula VIEJA ni siquiera existe).
+# Esta via busca esas etiquetas directamente en el texto OCR general, en
+# vez de cortar por posicion fija como hace el MRZ -- por eso no se rompe
+# si se pierde/agrega un caracter en otra parte del texto.
+# ============================================================================
+
+ETIQUETAS_A_SALTAR = {
+    "NOMBRES", "APELLIDOS", "APEFICOS", "APOLLIDOS", "NACIONALIDAD",
+    "SEXO", "ESTATURA", "FIRMA",
+}
+
+
+def _linea_es_etiqueta(linea: str) -> bool:
+    """True si la linea es (o parece) una de las etiquetas impresas en la
+    cedula, o esta vacia -- para saltarla al buscar el valor real."""
+    compacta = re.sub(r"[^A-ZÑ]", "", linea.upper())
+    return compacta in ETIQUETAS_A_SALTAR or len(compacta) == 0
+
+
+def _palabras_nombre_validas(linea: str) -> list:
+    """
+    De una linea de OCR (con ruido alrededor: marcas de agua, etiquetas
+    chiquitas, la firma), se queda solo con las palabras que parecen texto
+    real de un campo de nombre: en MAYUSCULA, como se imprime en la
+    cedula. El ruido alrededor de esos campos casi siempre sale en
+    minuscula o mezclado, asi que este filtro lo descarta sin tener que
+    saber de antemano donde empieza/termina el nombre dentro de la linea.
+    """
+    return re.findall(r"[A-ZÁÉÍÓÚÑ]{2,}", linea)
+
+
+def extraer_campos_por_etiqueta(texto: str) -> dict:
+    """
+    Busca una linea con "NUIP" o "NUMERO" (con variantes de OCR) y toma
+    el numero que sigue en la misma linea, y el apellido/nombre en las
+    lineas de alrededor. Devuelve {"numero_documento": ..., "nombre_completo": ...}
+    con None en lo que no se pudo determinar con confianza.
+    """
+    lineas = [l.strip() for l in texto.split("\n")]
+    resultado = {"numero_documento": None, "nombre_completo": None}
+
+    for idx, linea in enumerate(lineas):
+        m = re.search(r"N[UÚ][I1]P|N[UÚ]MERO", linea, re.IGNORECASE)
+        if not m:
+            continue
+
+        # Numero: cifras (con separadores . o ,, tipicos de miles) que
+        # siguen a la etiqueta en la misma linea.
+        cifras = re.search(r"[\d.,]{6,}", linea[m.end():])
+        if cifras:
+            numero = re.sub(r"[.,]", "", cifras.group())
+            numero = normalize_numeric_field(numero)
+            if numero.isdigit():
+                resultado["numero_documento"] = numero
+
+        # Apellidos: primera linea no vacia despues de la etiqueta.
+        j = idx + 1
+        while j < len(lineas) and not lineas[j]:
+            j += 1
+        apellidos = " ".join(_palabras_nombre_validas(lineas[j])) if j < len(lineas) else ""
+        if j < len(lineas):
+            j += 1
+
+        # Nombres: se saltan lineas vacias/etiqueta (ej. "Nombres" suelto)
+        # hasta la siguiente linea con contenido.
+        while j < len(lineas) and _linea_es_etiqueta(lineas[j]):
+            j += 1
+        nombres = " ".join(_palabras_nombre_validas(lineas[j])) if j < len(lineas) else ""
+
+        if nombres and apellidos:
+            resultado["nombre_completo"] = f"{nombres} {apellidos}"
+        elif apellidos:
+            resultado["nombre_completo"] = apellidos
+
+        break  # ya se encontro la linea de NUIP/NUMERO, no seguir buscando otra
+
+    return resultado
+
+
+def combinar_mrz_y_etiquetas(mrz_info: dict, campos_etiqueta: dict) -> dict:
+    """
+    Combina lo leido del MRZ con lo leido por etiquetas (NUIP/Apellidos/
+    Nombres). Prioridad:
+    - Numero: si la etiqueta encontro uno y difiere del MRZ, se usa el de
+      la etiqueta (mas confiable ante un MRZ corrido/desalineado) y se dejar
+      un aviso explicando la diferencia -- nunca se descarta en silencio.
+    - Nombre: se usa el mas largo de los dos (el MRZ trunca a 30
+      caracteres por linea; la etiqueta no tiene ese limite).
+    - Si no hubo MRZ (no existe, como en la cedula vieja, o no se pudo
+      leer), se arma el resultado solo con lo de la etiqueta.
+    """
+    numero_etq = campos_etiqueta.get("numero_documento")
+    nombre_etq = campos_etiqueta.get("nombre_completo")
+
+    if not mrz_info.get("encontrado"):
+        if not numero_etq and not nombre_etq:
+            return mrz_info
+        return {
+            "encontrado": True,
+            "valido": None,
+            "avisos": [
+                "No se encontro (o no se pudo leer) el MRZ de este "
+                "documento. El numero/nombre se obtuvieron leyendo las "
+                "etiquetas de texto normal ('NUIP'/'Apellidos'/'Nombres')."
+            ],
+            "errores": [],
+            "nombre_completo": nombre_etq,
+            "numero_documento": numero_etq,
+            "fecha_nacimiento": None,
+            "edad": None,
+            "sexo": None,
+            "nacionalidad": None,
+            "lineas": [],
+        }
+
+    combinado = dict(mrz_info)
+    avisos = list(combinado.get("avisos") or [])
+
+    numero_mrz = combinado.get("numero_documento")
+    if numero_etq and numero_etq != numero_mrz:
+        avisos.append(
+            f"El numero leido por etiqueta ('NUIP'/'NUMERO' en el "
+            f"frente) dio '{numero_etq}', distinto al leido del MRZ "
+            f"('{numero_mrz}'). Se usa el de la etiqueta: el MRZ es mas "
+            "propenso a desalinearse si el OCR pierde/agrega un caracter."
+        )
+        combinado["numero_documento"] = numero_etq
+    elif numero_etq and not numero_mrz:
+        combinado["numero_documento"] = numero_etq
+
+    nombre_mrz = combinado.get("nombre_completo") or ""
+    if nombre_etq and len(nombre_etq) > len(nombre_mrz):
+        combinado["nombre_completo"] = nombre_etq
+
+    combinado["avisos"] = avisos
+    return combinado
+
+
+# ============================================================================
 # MOTOR DE PROCESAMIENTO (con eventos paso a paso)
 # ============================================================================
 
@@ -400,6 +543,14 @@ def procesar_cedula(q, file_bytes, filename):
             mrz_info = procesar_mrz(raw_text_total)
         if not mrz_info.get("encontrado"):
             mrz_info = procesar_mrz(raw_text_mrz_total)
+
+        # Respaldo/cruce: numero y nombre leidos como texto normal en el
+        # frente ("NUIP"/"Apellidos"/"Nombres"), no del MRZ. Se usa sobre
+        # el texto sin filtrar por confianza (raw_text_mrz_total) porque
+        # esta funcion ya valida su propia forma (regex + solo palabras en
+        # MAYUSCULA), no necesita el filtro de Tesseract para descartar ruido.
+        campos_etiqueta = extraer_campos_por_etiqueta(raw_text_mrz_total)
+        mrz_info = combinar_mrz_y_etiquetas(mrz_info, campos_etiqueta)
 
         resultado = {
             "raw_text": raw_text_total,
