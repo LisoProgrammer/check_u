@@ -339,8 +339,15 @@ def _palabras_nombre_validas(linea: str) -> list:
     cedula. El ruido alrededor de esos campos casi siempre sale en
     minuscula o mezclado, asi que este filtro lo descarta sin tener que
     saber de antemano donde empieza/termina el nombre dentro de la linea.
+
+    Minimo 3 letras (no 2): un fragmento de ruido de 2 letras en
+    MAYUSCULA (ej. "TA", sobrante de "ESTATURA" fusionado en la linea)
+    alcanzaba a pasar el filtro y se pegaba al nombre real (caso real:
+    "HECTOR MANUEL TA CABARCAS CUADRADO"). Los nombres/apellidos reales
+    casi siempre tienen 3+ letras, asi que este umbral saca ese ruido sin
+    perder nombres validos.
     """
-    return re.findall(r"[A-ZÁÉÍÓÚÑ]{2,}", linea)
+    return re.findall(r"[A-ZÁÉÍÓÚÑ]{3,}", linea)
 
 
 def extraer_campos_por_etiqueta(texto: str) -> dict:
