@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .normalize import normalize_mrz
+from .normalize import normalize_mrz, normalize_numeric_field
 
 
 # ================================================================
@@ -131,30 +131,38 @@ def get_info(
     document_type = line1[0:2]
     issuing_country = line1[2:5]
 
-    document_number = line2[18:28]
     document_number_check = line1[14]
 
     optional_data_1 = line1[15:30]
-    department = optional_data_1[0:2]
-    municipality = optional_data_1[2:5]
-
-    # En este formato, el número se encuentra en la primera
-    # línea y ocupa la sección principal del documento.
-    document_number = line2[18:28]
+    # department/municipality son códigos DANE, siempre numéricos:
+    # se corrigen errores de OCR típicos (L->1, O->0, etc.) igual que
+    # ya se hacía solo para los dígitos de chequeo.
+    department = normalize_numeric_field(optional_data_1[0:2])
+    municipality = normalize_numeric_field(optional_data_1[2:5])
 
     # ------------------------------------------------------------
     # LÍNEA 2
     # ------------------------------------------------------------
 
-    birth_date = line2[0:6]
-    birth_day = line2[4:6]
-    birth_month = line2[2:4]
-    birth_year = "20" + line2[0:2]
+    # El número de documento y las fechas son campos puramente
+    # numéricos, así que se les aplica la misma corrección OCR
+    # (L->1, O->0, I->1, etc.) que normalize.py ya define y que antes
+    # SOLO se usaba para validar dígitos de chequeo en validate.py, no
+    # para el valor del campo en sí. Sin esto, un '1' leído como 'L'
+    # (confusión común de Tesseract) quedaba tal cual en el número de
+    # documento, y nunca iba a coincidir con nada real al consultarlo.
+    document_number = normalize_numeric_field(line2[18:28])
+
+    birth_date_raw = normalize_numeric_field(line2[0:6])
+    birth_date = birth_date_raw
+    birth_day = birth_date_raw[4:6]
+    birth_month = birth_date_raw[2:4]
+    birth_year = "20" + birth_date_raw[0:2]
     birth_date_check = line2[6]
 
     sex = line2[7]
 
-    expiry_date = line2[8:14]
+    expiry_date = normalize_numeric_field(line2[8:14])
     expiry_date_check = line2[14]
 
     nationality = line2[15:18]

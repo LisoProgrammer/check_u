@@ -153,6 +153,38 @@ de progreso llenándose según el porcentaje del proceso.
   `display` calculado de cada uno de los tres divs, antes y después de
   la consulta: solo uno queda visible en cada momento.
 
+- **Número de documento con letras en vez de dígitos (ej. "L104396433"
+  en vez de "1104396433"), que hacía fallar la consulta al RUI**:
+  `normalize.py` ya tenía una corrección para letras que Tesseract
+  confunde con números (`L→1`, `O→0`, `I→1`, `Z→2`, etc.), pero
+  `get_info.py` solo la aplicaba al dígito de chequeo — el número de
+  documento, las fechas y los códigos de departamento/municipio se
+  tomaban tal cual del OCR. Ahora esos campos numéricos también pasan
+  por la misma corrección antes de usarse.
+
+- **Nombres truncados en el MRZ (ej. "MANU" en vez de "MANUEL")**: esto
+  normalmente **no es un bug de OCR ni de filtros** — la línea 3 del
+  MRZ tiene un ancho fijo de 30 caracteres, y si "apellidos + nombres"
+  no caben completos, se recorta (el propio código ya documentaba este
+  caso con el ejemplo "LISANDRO<ENR" en `parse_names`). Si el equipo
+  quiere nombres completos siempre, habría que ampliar ese campo en el
+  formato del MRZ que generan, no ajustar el procesamiento de imagen.
+
+- **Pasada de OCR dedicada a la franja MRZ**: adicional a las dos
+  pasadas de página completa que ya existían (confianza 40 y 0), se
+  agregó una tercera pasada (`TesseractEngine.extract_mrz_text`) que
+  recorta el último ~22% de alto de la imagen (donde debería estar el
+  MRZ) y corre Tesseract con `lang='eng'` + whitelist restringido
+  (`A-Z0-9<`) + `--psm 6`, en vez de la configuración general de
+  página completa con diccionario en español. Esto ataca directamente
+  las confusiones tipo L/1 desde el origen del OCR, en vez de solo
+  corregirlas después. Se prueba primero esta pasada dedicada y se cae
+  a las dos anteriores como respaldo. Probado con una cédula sintética
+  generada para la prueba (no tengo cédulas reales ni las fotos que
+  reportaron el bug), confirmando que el recorte cae sobre el MRZ y
+  que el parseo completo (nombre, número, fecha, edad) funciona sobre
+  el texto de esa pasada.
+
 - **Año de nacimiento del MRZ**: `mrz/get_info.py` siempre antepone
   "20" al año de 2 dígitos (asume nacidos en 2000+). Si eso da una
   fecha futura, en `webapp/app.py` la interpreto como 19xx para poder

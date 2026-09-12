@@ -309,6 +309,7 @@ def procesar_cedula(q, file_bytes, filename):
 
         raw_text_total = ""
         raw_text_mrz_total = ""
+        raw_text_mrz_recorte = ""
 
         for pagina in paginas:
 
@@ -340,16 +341,36 @@ def procesar_cedula(q, file_bytes, filename):
             # antes de que buscar_lineas_mrz() la vea.
             texto_mrz = ocr_engine.extract_text_with_confidence(limpia, min_confidence=0)
             raw_text_mrz_total += texto_mrz + "\n"
+
+            # Pasada dedicada a la franja MRZ: se recorta el ultimo
+            # ~22% de alto de la imagen (donde deberia estar el MRZ) y
+            # se corre OCR con whitelist restringido (solo letras,
+            # digitos y "<") en vez de la config general de pagina
+            # completa con diccionario 'spa' que usan las dos pasadas
+            # de arriba. Reduce confusiones tipo L/1 desde el origen.
+            alto_img = limpia.shape[0]
+            recorte_mrz = limpia[int(alto_img * 0.78):, :]
+            texto_mrz_recorte = ocr_engine.extract_mrz_text(recorte_mrz)
+            raw_text_mrz_recorte += texto_mrz_recorte + "\n"
+
             emitir(q, type="stage", target=target, stage="limpiando", status="done")
 
         texto_limpio = text_cleaner.clean(raw_text_total)
 
-        mrz_info = procesar_mrz(raw_text_total)
+        # Prioridad: primero la pasada dedicada al MRZ (whitelist +
+        # psm fijo, deberia ser la mas confiable para esta franja),
+        # despues las dos pasadas de pagina completa como respaldo por
+        # si el recorte no cayo sobre el MRZ real (ej. documento con
+        # proporciones distintas a las esperadas).
+        mrz_info = procesar_mrz(raw_text_mrz_recorte)
+        if not mrz_info.get("encontrado"):
+            mrz_info = procesar_mrz(raw_text_total)
         if not mrz_info.get("encontrado"):
             mrz_info = procesar_mrz(raw_text_mrz_total)
 
         resultado = {
             "raw_text": raw_text_total,
+            "raw_text_mrz_recorte": raw_text_mrz_recorte,
             "text": texto_limpio,
             "mrz": mrz_info,
             "fields": {
