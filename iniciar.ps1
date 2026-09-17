@@ -40,7 +40,9 @@ $pipVenv = ".\venv\Scripts\pip.exe"
 
 Write-Host "`n== 3. Dependencias de Python ==" -ForegroundColor Cyan
 & $pipVenv install --upgrade pip | Out-Null
-& $pipVenv install pdf2image pytesseract pillow opencv-python flask requests pymupdf
+# zxing-cpp lee el codigo de barras PDF417 del reverso de la cedula
+# amarilla con hologramas; rapidfuzz compara nombres contra el RUI.
+& $pipVenv install pdf2image pytesseract pillow opencv-python flask requests pymupdf zxing-cpp rapidfuzz
 
 Write-Host "`n== 4. Tesseract OCR ==" -ForegroundColor Cyan
 $tesseract = Get-Command tesseract -ErrorAction SilentlyContinue

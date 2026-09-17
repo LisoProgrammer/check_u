@@ -212,12 +212,22 @@ def verificar_entorno():
     # app.py antes de llegar aqui, pero los listamos igual para dar
     # un mensaje mas claro que un traceback de Python.
     # ------------------------------------------------------------
-    paquetes = ["cv2", "PIL", "flask", "requests", "pytesseract"]
+    # zxingcpp lee el codigo de barras PDF417 del reverso de la cedula
+    # amarilla con hologramas; rapidfuzz compara los nombres contra el
+    # RUI. Sin ellos el panel arranca pero pierde precision, asi que se
+    # listan igual que los demas.
+    paquetes = [
+        "cv2", "PIL", "flask", "requests", "pytesseract", "zxingcpp", "rapidfuzz",
+    ]
     for paquete in paquetes:
         try:
             __import__(paquete)
         except ImportError:
-            nombre_pip = {"cv2": "opencv-python", "PIL": "pillow"}.get(paquete, paquete)
+            nombre_pip = {
+                "cv2": "opencv-python",
+                "PIL": "pillow",
+                "zxingcpp": "zxing-cpp",
+            }.get(paquete, paquete)
             problemas.append({
                 "componente": f"Paquete de Python: {paquete}",
                 "detalle": f"No se pudo importar '{paquete}'.",
