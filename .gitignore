@@ -4,3 +4,13 @@ test_outputs/
 test_data/
 test_image_cleaner/
 modules/ocr_module/config.py
+webapp/historial.json
+
+# Casos guardados por el panel: documentos reales de personas reales
+# (imagenes de cedulas y sus datos extraidos). Nunca deben subirse.
+webapp/data/
+
+# Cedulas reales usadas para pruebas locales: no deben subirse al
+# repositorio (contienen nombre, numero de documento y fecha de
+# nacimiento de personas reales).
+test_samples/

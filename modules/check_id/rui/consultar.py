@@ -37,4 +37,7 @@ def consultar(pre_data):
         response_format["success"] = False
         response_format["data"]["id"] = pre_data["id"]
     return response_format
-print(consultar(pre_data))
+
+
+if __name__ == "__main__":
+    print(consultar(pre_data))

@@ -1,53 +1,69 @@
-# Dependencias del sistema (Linux / WSL)
+# Check_U
 
-Primero, instala las dependencias necesarias a nivel de sistema (raíz del proyecto):
+Proyecto de ingeniería (UTB): lee una **cédula** (PDF o foto/escaneo),
+extrae los datos (nombre, número de documento, fecha de nacimiento,
+edad, sexo) y consulta el RUI del DNP con el número obtenido, todo
+desde un panel web local.
 
-sudo apt update
-sudo apt install tesseract-ocr tesseract-ocr-spa poppler-utils python3.12-venv
+## Cómo usarlo (Windows)
 
+1. Si no lo tenés, instalá Python 3.11 o más nuevo desde
+   [python.org/downloads](https://www.python.org/downloads/) — al
+   instalarlo, marcá la casilla **"Add python.exe to PATH"**.
+2. Descargá o cloná este repositorio en tu computador.
+3. Abrí la carpeta del proyecto y hacé doble clic en **`iniciar.ps1`**
+   (o, desde una terminal parada en esa carpeta, corré `.\iniciar.ps1`).
 
-# Configuración del entorno virtual
+Ese único script se encarga de todo:
 
-Crea y activa un entorno virtual para aislar las dependencias del proyecto:
+- Crea el entorno virtual de Python (`venv`) si no existe.
+- Instala las librerías necesarias (`pdf2image`, `pytesseract`,
+  `pillow`, `opencv-python`, `flask`, `requests`, `pymupdf`).
+- Detecta si falta Tesseract OCR y trata de instalarlo solo con
+  `winget` (incluido el paquete de idioma español); si no puede, te
+  deja el link para instalarlo a mano.
+- Verifica que todo haya quedado bien configurado.
+- Abre `http://localhost:5000` en el navegador y deja el panel
+  corriendo en esa misma ventana.
 
-python3 -m venv venv
-source venv/bin/activate
+**Se puede correr las veces que haga falta**: la primera vez instala
+todo; las siguientes veces esos pasos ya están hechos, se saltan
+solos, y el script va directo a abrir el panel. Para cerrarlo, `Ctrl+C`
+en la ventana de la terminal.
 
-Instala las librerías de Python necesarias:
+Si el script se detiene con un error, va a decir exactamente qué
+falta y cómo solucionarlo — corregilo y volvé a correr `.\iniciar.ps1`.
 
-pip install pdf2image pytesseract pillow opencv-python
+## Qué hace el panel
 
+1. Subís una **cédula** (PDF o imagen).
+2. Al darle a **Procesar**, el archivo pasa por varias etapas visibles
+   en tiempo real (leyendo → convirtiendo → procesando → corrigiendo
+   inclinación → limpiando/OCR).
+3. Se extraen los datos (nombre, número de documento, fecha de
+   nacimiento, edad, sexo) y se muestran apenas termina.
+4. Se consulta el RUI del DNP con el número de documento obtenido.
+5. Cada procesamiento queda guardado y aparece en la pestaña
+   **Historial**.
 
-# Prueba del módulo OCR
+## Estructura del proyecto
 
-Ejecuta el módulo de prueba con el siguiente comando:
+- `iniciar.ps1` — instala todo lo necesario (si hace falta) y abre el
+  panel web. Es lo único que hay que correr.
+- `webapp/` — servidor Flask, interfaz web y su propio
+  [README](webapp/README.md) con el detalle técnico y el historial de
+  bugs encontrados y corregidos.
+- `modules/ocr_module/` — lectura de PDF/imagen y OCR (Tesseract).
+- `modules/mrz/` — parseo del MRZ (franja de datos de la cédula).
+- `modules/check_id/` — consulta al RUI del DNP.
+- `test_samples/` — cédulas de prueba (reales, para pruebas locales;
+  no se suben al repositorio).
 
-python -m modules.ocr_module.test.test_ocr
+## Notas para el equipo
 
-
-Resultado de OCR (sin preprocesamiento)
-
-===== TEXTO EXTRAÍDO =====
-
-FECHA DE NACIMIENTO DD-MM-YYYY $
-
-CIUDAD
-
-(DEPARTAMENTO) S
-
-LUGAR DE NACIMIENTO S
-XX G.S. RH SEXO a
-
-ESTATURA G.S. RH SEXO
-
-DD-MM-YYYY CIUDAD
-FECHA Y LUGAR DE EXPEDICION
-
-III IOIIOO000 0000 OOOO AAA AAAAAIACOOA OAK
-
-
-# Explicación
-
-El módulo de OCR se ejecuta dentro de un entorno virtual con el fin de aislar dependencias y garantizar consistencia en el entorno de desarrollo.
-
-El resultado mostrado corresponde a una ejecución sin aplicar técnicas de preprocesamiento de imagen, lo cual explica la presencia de ruido y errores en el texto extraído. Para mejorar la calidad del reconocimiento, es necesario incorporar etapas de limpieza y transformación de la imagen antes de aplicar OCR.
+- El desarrollo y las pruebas de este proyecto se hacen en Windows;
+  no se mantienen instrucciones para Linux/WSL.
+- Si alguien agrega una dependencia nueva de Python, hay que sumarla
+  también a la lista de instalación dentro de `iniciar.ps1` (paso "3.
+  Dependencias de Python"), si no cada quien tiene que instalarla a
+  mano.

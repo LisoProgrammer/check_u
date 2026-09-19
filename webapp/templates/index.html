@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es" data-tema="sistema">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Check_U · Validación documental</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<!-- Manchas de color que le dan al cristal algo que difuminar detrás. -->
+<div class="fondo" aria-hidden="true">
+    <span class="mancha mancha-1"></span>
+    <span class="mancha mancha-2"></span>
+    <span class="mancha mancha-3"></span>
+</div>
+
+<header class="barra vidrio">
+    <div class="marca">
+        <span class="marca-icono">U</span>
+        <span class="marca-texto">Check<strong>_U</strong></span>
+    </div>
+
+    <div class="barra-estado" id="barra-estado" hidden>
+        <span class="punto" id="estado-punto"></span>
+        <span id="estado-texto"></span>
+    </div>
+
+    <div class="barra-acciones">
+        <button class="boton" id="btn-nuevo" title="Empezar una solicitud nueva">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            <span>Nuevo caso</span>
+        </button>
+        <button class="boton" id="btn-historial" title="Ver y retomar casos guardados">
+            <svg viewBox="0 0 24 24"><path d="M12 8v5l3 2"/><circle cx="12" cy="12" r="9"/></svg>
+            <span>Historial</span>
+        </button>
+        <button class="boton boton-icono" id="btn-tema" title="Cambiar entre modo claro y oscuro">
+            <svg class="icono-claro" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
+            <svg class="icono-oscuro" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>
+        </button>
+    </div>
+</header>
+
+<!-- Aviso de entorno mal configurado (Tesseract, PyMuPDF, etc.) -->
+<div id="aviso-entorno" class="aviso-entorno vidrio" hidden>
+    <strong>Falta configurar algo antes de poder procesar documentos:</strong>
+    <ul id="aviso-entorno-lista"></ul>
+</div>
+
+<!-- ===================== CARRUSEL DE PESTAÑAS ===================== -->
+<nav class="carrusel" id="carrusel">
+    <div class="carrusel-pista" id="carrusel-pista"></div>
+    <button class="pestaña pestaña-agregar" id="btn-agregar" title="Agregar un documento">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Agregar documento</span>
+    </button>
+</nav>
+
+<input type="file" id="input-archivo" accept=".pdf,.png,.jpg,.jpeg,.webp,.bmp,.tif,.tiff" multiple hidden>
+
+<main class="lienzo" id="lienzo">
+
+    <!-- ---------- Estado inicial: sin documentos ---------- -->
+    <section class="panel-vacio vidrio" id="panel-vacio">
+        <div class="vacio-icono">
+            <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+        </div>
+        <h1>Suelta una cédula para empezar</h1>
+        <p>
+            Se detecta sola si es <strong>cédula digital</strong> (con MRZ) o
+            <strong>cédula amarilla con hologramas</strong>, se extraen los datos
+            y se validan contra el RUI. Al subir un segundo documento se comparan
+            entre sí automáticamente.
+        </p>
+        <button class="boton boton-primario" id="btn-vacio-subir">Elegir archivo</button>
+    </section>
+
+    <!-- Las pestañas de documento y la de comparación se generan aquí -->
+    <div id="paneles"></div>
+
+</main>
+
+<!-- ===================== AVISO TRANSITORIO DE FORMATO ===================== -->
+<!-- Aparece mientras se procesa cuando no se detecta MRZ, y se va solo
+     al terminar el proceso. -->
+<div class="aviso-formato vidrio" id="aviso-formato" hidden>
+    <span class="aviso-formato-spinner"></span>
+    <span id="aviso-formato-texto"></span>
+</div>
+
+<!-- ===================== PANEL LATERAL DE HISTORIAL ===================== -->
+<aside class="cajon" id="cajon-historial" hidden>
+    <div class="cajon-fondo" id="cajon-fondo"></div>
+    <div class="cajon-panel vidrio">
+        <header class="cajon-header">
+            <h2>Historial de casos</h2>
+            <button class="boton boton-icono" id="btn-cerrar-historial" title="Cerrar">
+                <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+        </header>
+        <p class="cajon-nota">
+            Cada caso guarda sus documentos y su análisis. Se puede retomar en
+            cualquier momento para agregar o reemplazar documentos.
+        </p>
+        <div class="cajon-lista" id="lista-casos"></div>
+    </div>
+</aside>
+
+<!-- Zona de arrastre a pantalla completa -->
+<div class="soltar-aqui" id="soltar-aqui" hidden>
+    <div class="soltar-caja vidrio">
+        <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+        <span>Suelta el documento para procesarlo</span>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
