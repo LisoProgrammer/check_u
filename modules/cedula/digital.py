@@ -239,11 +239,6 @@ def leer(
             anio, mes, dia = int(info.birth_year), int(info.birth_month), int(info.birth_day)
             edad = _calcular_edad(anio, mes, dia)
 
-            # get_info.py siempre antepone "20" al año de 2 digitos.
-            # Si eso da una fecha futura, la persona nacio en 19xx.
-            if edad is not None and edad < 0:
-                anio -= 100
-                edad = _calcular_edad(anio, mes, dia)
 
             lectura.edad = edad
             lectura.fecha_nacimiento = CampoLeido(

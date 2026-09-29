@@ -153,11 +153,27 @@ def get_info(
     # documento, y nunca iba a coincidir con nada real al consultarlo.
     document_number = normalize_numeric_field(line2[18:28])
 
+    import datetime
+
     birth_date_raw = normalize_numeric_field(line2[0:6])
     birth_date = birth_date_raw
     birth_day = birth_date_raw[4:6]
     birth_month = birth_date_raw[2:4]
-    birth_year = "20" + birth_date_raw[0:2]
+    
+    # Calcular el ao real basado en los ultimos 2 digitos y el ao actual
+    yy_str = birth_date_raw[0:2]
+    try:
+        yy = int(yy_str)
+        current_year = datetime.date.today().year
+        current_century = current_year // 100 * 100
+        current_yy = current_year % 100
+        
+        if yy <= current_yy:
+            birth_year = str(current_century + yy)
+        else:
+            birth_year = str(current_century - 100 + yy)
+    except ValueError:
+        birth_year = "20" + yy_str
     birth_date_check = line2[6]
 
     sex = line2[7]
