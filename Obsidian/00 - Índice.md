@@ -39,6 +39,7 @@ con **Abrir carpeta como bóveda**.
 - [[ADR-003 Nombres por estructura]]
 - [[ADR-004 Umbral de similitud 85]]
 - [[ADR-005 Casos en archivos JSON]]
+- [[ADR-006 Base de datos del backend]] — PostgreSQL con TypeORM (en implementación)
 
 ## Qué tan bien funciona
 
